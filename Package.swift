@@ -27,10 +27,7 @@ let package = Package(
         ),
         .target(
             name: "RadrootsKitTesting",
-            dependencies: ["RadrootsKit"],
-            linkerSettings: [
-                .linkedFramework("Security")
-            ]
+            dependencies: ["RadrootsKit"]
         ),
         .testTarget(
             name: "RadrootsKitTests",

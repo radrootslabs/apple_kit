@@ -28,6 +28,34 @@ import Testing
     #expect(try store.get(key) == nil)
 }
 
+@Test func resetAllowsMissingState() throws {
+    let request = RadrootsAppLocalStateResetRequest(
+        appIdentifier: "org.radroots.tests.\(UUID().uuidString)",
+        keychainServiceNames: ["org.radroots.tests.\(UUID().uuidString)"]
+    )
+
+    try RadrootsAppLocalStateReset.reset(request)
+}
+
+@Test func resetClearsNamedKeychainService() throws {
+    let servicePrefix = "org.radroots.tests.\(UUID().uuidString)"
+    let store = RadrootsAppleKeychainSecureStore(servicePrefix: servicePrefix)
+    let key = RadrootsSecureStoreKey(namespace: "reset", name: "secret")
+    let serviceName = try key.serviceName(servicePrefix: servicePrefix)
+
+    try store.put(Data("secret".utf8), for: key)
+    #expect(try store.get(key) == Data("secret".utf8))
+
+    try RadrootsAppLocalStateReset.reset(
+        RadrootsAppLocalStateResetRequest(
+            appIdentifier: "org.radroots.tests.\(UUID().uuidString)",
+            keychainServiceNames: [serviceName]
+        )
+    )
+
+    #expect(try store.get(key) == nil)
+}
+
 @Test func userPresenceStatusIsInspectable() async {
     let userPresence = RadrootsAppleUserPresence()
     let status = await userPresence.currentStatus()

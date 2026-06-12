@@ -30,12 +30,3 @@ import RadrootsKitTesting
         "C": "keep"
     ])
 }
-
-@Test func resetAllowsMissingState() throws {
-    let request = RadrootsAppLocalStateResetRequest(
-        appIdentifier: "org.radroots.tests.\(UUID().uuidString)",
-        keychainServiceNames: ["org.radroots.tests.\(UUID().uuidString)"]
-    )
-
-    try RadrootsAppLocalStateReset.reset(request)
-}
