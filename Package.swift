@@ -7,6 +7,38 @@ let package = Package(
         .iOS(.v18),
         .macOS(.v15)
     ],
-    products: [],
-    targets: []
+    products: [
+        .library(
+            name: "RadrootsKit",
+            targets: ["RadrootsKit"]
+        ),
+        .library(
+            name: "RadrootsKitTesting",
+            targets: ["RadrootsKitTesting"]
+        )
+    ],
+    targets: [
+        .target(
+            name: "RadrootsKit",
+            linkerSettings: [
+                .linkedFramework("Security"),
+                .linkedFramework("LocalAuthentication")
+            ]
+        ),
+        .target(
+            name: "RadrootsKitTesting",
+            dependencies: ["RadrootsKit"],
+            linkerSettings: [
+                .linkedFramework("Security")
+            ]
+        ),
+        .testTarget(
+            name: "RadrootsKitTests",
+            dependencies: ["RadrootsKit"]
+        ),
+        .testTarget(
+            name: "RadrootsKitTestingTests",
+            dependencies: ["RadrootsKitTesting"]
+        )
+    ]
 )
