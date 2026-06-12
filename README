@@ -1,0 +1,14 @@
+# apple_kit
+
+This is the README for `apple_kit` which contains `RadrootsKit`, the shared
+Swift package for native Rad Roots Apple-platform application services.
+
+## Copyright
+
+Except as otherwise noted, all files in the `apple_kit` distribution are
+
+    Copyright (c) 2026 Tyson Lupul
+
+## License
+
+This repository is licensed under GPL-3.0-or-later. See LICENSE.
