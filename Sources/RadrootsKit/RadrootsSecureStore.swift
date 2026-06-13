@@ -64,6 +64,7 @@ public protocol RadrootsSecureStore: AnyObject, Sendable {
         for key: RadrootsSecureStoreKey,
         policy: RadrootsSecretAccessPolicy
     ) throws
+    func contains(_ key: RadrootsSecureStoreKey) throws -> Bool
     func get(_ key: RadrootsSecureStoreKey) throws -> Data?
     func delete(_ key: RadrootsSecureStoreKey) throws
     func deleteNamespace(_ namespace: String) throws

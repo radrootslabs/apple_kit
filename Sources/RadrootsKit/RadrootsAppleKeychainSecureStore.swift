@@ -18,16 +18,31 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         var query = try baseQuery(for: key)
         query[kSecValueData as String] = value
 
-        if policy.userPresenceRequired {
-            query[kSecAttrAccessControl as String] = try accessControl(for: policy)
+        let mapping = keychainPolicyMapping(for: policy)
+        if mapping.usesAccessControl {
+            query[kSecAttrAccessControl as String] = try accessControl(for: mapping)
         } else {
-            query[kSecAttrAccessible as String] = accessibilityConstant(for: policy)
+            query[kSecAttrAccessible as String] = mapping.accessibilityConstant
         }
 
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw Self.mapStatus(status, defaultMessage: "keychain write failed")
         }
+    }
+
+    public func contains(_ key: RadrootsSecureStoreKey) throws -> Bool {
+        var query = try baseQuery(for: key)
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        if status == errSecItemNotFound {
+            return false
+        }
+        guard status == errSecSuccess else {
+            throw Self.mapStatus(status, defaultMessage: "keychain presence check failed")
+        }
+        return true
     }
 
     public func get(_ key: RadrootsSecureStoreKey) throws -> Data? {
@@ -95,12 +110,24 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         }
     }
 
+    func keychainPolicyMapping(for policy: RadrootsSecretAccessPolicy) -> RadrootsKeychainSecretPolicyMapping {
+        RadrootsKeychainSecretPolicyMapping(
+            accessibilityConstant: accessibilityConstant(for: policy),
+            usesAccessControl: policy.userPresenceRequired,
+            accessControlFlags: policy.userPresenceRequired ? .userPresence : []
+        )
+    }
+
     func accessControl(for policy: RadrootsSecretAccessPolicy) throws -> SecAccessControl {
+        try accessControl(for: keychainPolicyMapping(for: policy))
+    }
+
+    func accessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl {
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
-            accessibilityConstant(for: policy),
-            .userPresence,
+            mapping.accessibilityConstant,
+            mapping.accessControlFlags,
             &error
         ) else {
             let message = (error?.takeRetainedValue() as Error?)?.localizedDescription
@@ -125,5 +152,20 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         default:
             .keychainStatus(status, defaultMessage)
         }
+    }
+}
+
+struct RadrootsKeychainSecretPolicyMapping: Equatable {
+    let accessibilityConstant: CFString
+    let usesAccessControl: Bool
+    let accessControlFlags: SecAccessControlCreateFlags
+
+    static func == (
+        lhs: RadrootsKeychainSecretPolicyMapping,
+        rhs: RadrootsKeychainSecretPolicyMapping
+    ) -> Bool {
+        String(lhs.accessibilityConstant) == String(rhs.accessibilityConstant)
+            && lhs.usesAccessControl == rhs.usesAccessControl
+            && lhs.accessControlFlags == rhs.accessControlFlags
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import RadrootsKit
 
@@ -26,6 +27,55 @@ import Testing
 
     try store.delete(key)
     #expect(try store.get(key) == nil)
+}
+
+@Test func keychainStoreChecksPresenceWithoutReturningSecret() throws {
+    let store = RadrootsAppleKeychainSecureStore(
+        servicePrefix: "org.radroots.tests.\(UUID().uuidString)"
+    )
+    let key = RadrootsSecureStoreKey(namespace: "presence", name: "token")
+
+    #expect(try store.contains(key) == false)
+
+    try store.put(Data("secret-token".utf8), for: key)
+    #expect(try store.contains(key) == true)
+
+    try store.delete(key)
+    #expect(try store.contains(key) == false)
+}
+
+@Test func secureLocalSecretMapsToDeviceLocalWhenUnlockedKeychainPolicy() {
+    let store = RadrootsAppleKeychainSecureStore()
+    let mapping = store.keychainPolicyMapping(for: .secureLocalSecret)
+
+    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
+    #expect(mapping.usesAccessControl == false)
+    #expect(mapping.accessControlFlags.isEmpty)
+}
+
+@Test func userPresenceLocalSecretMapsToDeviceLocalWhenUnlockedAccessControl() throws {
+    let store = RadrootsAppleKeychainSecureStore()
+    let mapping = store.keychainPolicyMapping(for: .userPresenceLocalSecret)
+
+    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
+    #expect(mapping.usesAccessControl == true)
+    #expect(mapping.accessControlFlags == .userPresence)
+    _ = try store.accessControl(for: mapping)
+}
+
+@Test func afterFirstUnlockPolicyCanRemainDeviceLocal() {
+    let store = RadrootsAppleKeychainSecureStore()
+    let mapping = store.keychainPolicyMapping(
+        for: RadrootsSecretAccessPolicy(
+            accessibility: .afterFirstUnlock,
+            deviceLocalOnly: true,
+            userPresenceRequired: false
+        )
+    )
+
+    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly))
+    #expect(mapping.usesAccessControl == false)
+    #expect(mapping.accessControlFlags.isEmpty)
 }
 
 @Test func resetAllowsMissingState() throws {
