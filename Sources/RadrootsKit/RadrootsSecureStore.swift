@@ -42,19 +42,43 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
         self.name = name
     }
 
+    public func normalized() throws -> Self {
+        Self(
+            namespace: try Self.normalizedNamespace(namespace),
+            name: try Self.normalizedName(name)
+        )
+    }
+
     public func serviceName(servicePrefix: String) throws -> String {
+        try Self.serviceName(servicePrefix: servicePrefix, namespace: namespace)
+    }
+
+    public static func serviceName(servicePrefix: String, namespace: String) throws -> String {
+        "\(try normalizedServicePrefix(servicePrefix)).\(try normalizedNamespace(namespace))"
+    }
+
+    public static func normalizedServicePrefix(_ servicePrefix: String) throws -> String {
         let trimmedPrefix = servicePrefix.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedNamespace = namespace.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrefix.isEmpty else {
             throw RadrootsAppleSecurityError.invalidRequest("secure store service prefix cannot be empty")
         }
+        return trimmedPrefix
+    }
+
+    public static func normalizedNamespace(_ namespace: String) throws -> String {
+        let trimmedNamespace = namespace.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedNamespace.isEmpty else {
             throw RadrootsAppleSecurityError.invalidRequest("secure store namespace cannot be empty")
         }
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return trimmedNamespace
+    }
+
+    public static func normalizedName(_ name: String) throws -> String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
             throw RadrootsAppleSecurityError.invalidRequest("secure store key name cannot be empty")
         }
-        return "\(trimmedPrefix).\(trimmedNamespace)"
+        return trimmedName
     }
 }
 

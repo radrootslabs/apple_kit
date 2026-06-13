@@ -8,11 +8,51 @@ import Testing
     #expect(try key.serviceName(servicePrefix: "org.radroots.test") == "org.radroots.test.session")
 }
 
+@Test func secureStoreKeyNormalizesServicePrefixNamespaceAndName() throws {
+    let key = RadrootsSecureStoreKey(namespace: " session ", name: " token ")
+    let normalizedKey = try key.normalized()
+
+    #expect(normalizedKey.namespace == "session")
+    #expect(normalizedKey.name == "token")
+    #expect(try key.serviceName(servicePrefix: " org.radroots.test ") == "org.radroots.test.session")
+}
+
 @Test func secureStoreKeyRejectsBlankNamespace() throws {
     let key = RadrootsSecureStoreKey(namespace: " ", name: "token")
     #expect(throws: RadrootsAppleSecurityError.self) {
         _ = try key.serviceName(servicePrefix: "org.radroots.test")
     }
+}
+
+@Test func secureStoreKeyRejectsBlankName() throws {
+    let key = RadrootsSecureStoreKey(namespace: "session", name: " ")
+    #expect(throws: RadrootsAppleSecurityError.self) {
+        _ = try key.normalized()
+    }
+}
+
+@Test func secureStoreKeyRejectsBlankServicePrefix() throws {
+    let key = RadrootsSecureStoreKey(namespace: "session", name: "token")
+    #expect(throws: RadrootsAppleSecurityError.self) {
+        _ = try key.serviceName(servicePrefix: " ")
+    }
+}
+
+@Test func keychainBaseQueryUsesNormalizedAccountName() throws {
+    let store = RadrootsAppleKeychainSecureStore(servicePrefix: " org.radroots.tests ")
+    let query = try store.baseQuery(
+        for: RadrootsSecureStoreKey(namespace: " identity ", name: " secret ")
+    )
+
+    #expect(query[kSecAttrService as String] as? String == "org.radroots.tests.identity")
+    #expect(query[kSecAttrAccount as String] as? String == "secret")
+}
+
+@Test func keychainNamespaceQueryUsesSharedValidation() throws {
+    let store = RadrootsAppleKeychainSecureStore(servicePrefix: " org.radroots.tests ")
+    let query = try store.namespaceQuery(" identity ")
+
+    #expect(query[kSecAttrService as String] as? String == "org.radroots.tests.identity")
 }
 
 @Test func keychainStoreRoundTripsLocalSecret() throws {

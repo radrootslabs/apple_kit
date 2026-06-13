@@ -72,28 +72,28 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     }
 
     public func deleteNamespace(_ namespace: String) throws {
-        let trimmedNamespace = namespace.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedNamespace.isEmpty else {
-            throw RadrootsAppleSecurityError.invalidRequest("secure store namespace cannot be empty")
-        }
-        let status = SecItemDelete(namespaceQuery(trimmedNamespace) as CFDictionary)
+        let status = SecItemDelete(try namespaceQuery(namespace) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw Self.mapStatus(status, defaultMessage: "keychain namespace delete failed")
         }
     }
 
     func baseQuery(for key: RadrootsSecureStoreKey) throws -> [String: Any] {
-        [
+        let normalizedKey = try key.normalized()
+        return [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: try key.serviceName(servicePrefix: servicePrefix),
-            kSecAttrAccount as String: key.name
+            kSecAttrService as String: try normalizedKey.serviceName(servicePrefix: servicePrefix),
+            kSecAttrAccount as String: normalizedKey.name
         ]
     }
 
-    func namespaceQuery(_ namespace: String) -> [String: Any] {
-        [
+    func namespaceQuery(_ namespace: String) throws -> [String: Any] {
+        return [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "\(servicePrefix).\(namespace)"
+            kSecAttrService as String: try RadrootsSecureStoreKey.serviceName(
+                servicePrefix: servicePrefix,
+                namespace: namespace
+            )
         ]
     }
 
