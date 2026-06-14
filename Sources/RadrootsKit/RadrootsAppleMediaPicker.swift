@@ -37,10 +37,21 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
     public init(
         fileAccess: RadrootsAppleFileAccess,
         fileManager: FileManager = .default,
-        callbackTimeout: TimeInterval = 120,
-        viewControllerProvider: @escaping RadrootsAppleViewControllerProvider = {
+        callbackTimeout: TimeInterval = 120
+    ) {
+        self.fileAccess = fileAccess
+        self.fileManager = fileManager
+        self.callbackTimeout = callbackTimeout
+        self.viewControllerProvider = {
             try RadrootsAppleUIKitPresentation.activeViewController(service: "media picker")
         }
+    }
+
+    public init(
+        fileAccess: RadrootsAppleFileAccess,
+        fileManager: FileManager = .default,
+        callbackTimeout: TimeInterval = 120,
+        viewControllerProvider: @escaping RadrootsAppleViewControllerProvider
     ) {
         self.fileAccess = fileAccess
         self.fileManager = fileManager
@@ -301,6 +312,9 @@ private final class RadrootsApplePhotoPickerCoordinator: NSObject, PHPickerViewC
             finish(.failure(.transientFailure("media import could not resolve an image file representation")))
             return
         }
+        let writer = writer
+        let destinationScope = request.destinationScope
+        let mediaTypeHint = mediaTypeHint(from: provider)
         provider.loadFileRepresentation(forTypeIdentifier: RadrootsAppleMediaPicker.imageTypeIdentifier()) { url, error in
             if let error {
                 Task { @MainActor in
@@ -317,12 +331,12 @@ private final class RadrootsApplePhotoPickerCoordinator: NSObject, PHPickerViewC
             let result: Result<RadrootsMediaAsset, RadrootsCaptureIntakeError>
             do {
                 result = .success(
-                    try self.writer.persistExternalImage(
+                    try writer.persistExternalImage(
                         sourceURL: url,
                         source: .libraryImport,
-                        destinationScope: self.request.destinationScope,
+                        destinationScope: destinationScope,
                         suggestedFilename: suggestedName,
-                        mediaTypeHint: self.mediaTypeHint(from: provider)
+                        mediaTypeHint: mediaTypeHint
                     )
                 )
             } catch {

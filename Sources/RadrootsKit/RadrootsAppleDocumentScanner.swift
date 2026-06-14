@@ -19,10 +19,19 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
     #if canImport(UIKit)
     public init(
         fileAccess: RadrootsAppleFileAccess,
-        callbackTimeout: TimeInterval = 120,
-        viewControllerProvider: @escaping RadrootsAppleViewControllerProvider = {
+        callbackTimeout: TimeInterval = 120
+    ) {
+        self.fileAccess = fileAccess
+        self.callbackTimeout = callbackTimeout
+        self.viewControllerProvider = {
             try RadrootsAppleUIKitPresentation.activeViewController(service: "document scanner")
         }
+    }
+
+    public init(
+        fileAccess: RadrootsAppleFileAccess,
+        callbackTimeout: TimeInterval = 120,
+        viewControllerProvider: @escaping RadrootsAppleViewControllerProvider
     ) {
         self.fileAccess = fileAccess
         self.callbackTimeout = callbackTimeout
