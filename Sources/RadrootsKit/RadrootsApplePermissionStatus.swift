@@ -173,8 +173,10 @@ public struct RadrootsApplePermissionStatusAdapters: Sendable {
             .denied
         case .authorizedAlways:
             .authorized
+        #if os(iOS)
         case .authorizedWhenInUse:
             .authorized
+        #endif
         @unknown default:
             .unavailable
         }
