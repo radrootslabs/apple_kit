@@ -221,7 +221,7 @@ private extension RadrootsAppleMediaPicker {
 }
 
 @MainActor
-private enum RadrootsAppleUIKitPresentation {
+enum RadrootsAppleUIKitPresentation {
     static func activeViewController(service: String) throws -> UIViewController {
         let scenes = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -432,7 +432,7 @@ private final class RadrootsAppleCameraCaptureCoordinator: NSObject, UIImagePick
 #endif
 
 @MainActor
-private final class RadrootsApplePresentationRetainer {
+final class RadrootsApplePresentationRetainer {
     static let shared = RadrootsApplePresentationRetainer()
     private var retainers: [UUID: AnyObject]
 
@@ -618,7 +618,7 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
     }
 }
 
-private enum RadrootsAppleCaptureAsyncSupport {
+enum RadrootsAppleCaptureAsyncSupport {
     static func awaitMainActorCallback<Value: Sendable>(
         timeout: TimeInterval,
         timeoutMessage: String,
