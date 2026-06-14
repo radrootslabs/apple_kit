@@ -134,6 +134,7 @@ public protocol RadrootsFileAccess {
         suggestedFilename: String?
     ) throws -> RadrootsImportedDocument
     @discardableResult func prepareExport(_ request: RadrootsExportDocumentRequest) throws -> RadrootsPreparedExportDocument
+    func preparedExportExists(_ preparedExport: RadrootsPreparedExportDocument) throws -> Bool
     func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data
     func releaseStagedBlob(_ blob: RadrootsStagedBlobReference) throws
     func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws
@@ -351,6 +352,12 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         if fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
         }
+    }
+
+    public func preparedExportExists(_ preparedExport: RadrootsPreparedExportDocument) throws -> Bool {
+        let directoryURL = try preparedExportDirectoryURL(for: preparedExport)
+        return fileManager.fileExists(atPath: directoryURL.path) &&
+            fileManager.fileExists(atPath: preparedExport.fileURL.path)
     }
 
     public func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws {

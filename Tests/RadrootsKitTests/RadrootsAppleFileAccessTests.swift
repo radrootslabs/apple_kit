@@ -132,6 +132,9 @@ import Testing
     #expect(try Data(contentsOf: filePrepared.fileURL) == data)
     #expect(try Data(contentsOf: stagedPrepared.fileURL) == data)
     #expect(try Data(contentsOf: inlinePrepared.fileURL) == data)
+    #expect(try access.preparedExportExists(filePrepared))
+    #expect(try access.preparedExportExists(stagedPrepared))
+    #expect(try access.preparedExportExists(inlinePrepared))
     #expect(filePrepared.sizeBytes == UInt64(data.count))
     #expect(stagedPrepared.sizeBytes == UInt64(data.count))
     #expect(inlinePrepared.sizeBytes == UInt64(data.count))
@@ -140,9 +143,9 @@ import Testing
     try access.releasePreparedExport(stagedPrepared)
     try access.releasePreparedExport(inlinePrepared)
 
-    #expect(!FileManager.default.fileExists(atPath: filePrepared.fileURL.path))
-    #expect(!FileManager.default.fileExists(atPath: stagedPrepared.fileURL.path))
-    #expect(!FileManager.default.fileExists(atPath: inlinePrepared.fileURL.path))
+    #expect(!(try access.preparedExportExists(filePrepared)))
+    #expect(!(try access.preparedExportExists(stagedPrepared)))
+    #expect(!(try access.preparedExportExists(inlinePrepared)))
 }
 
 @Test func appleFileAccessKeepsSmallReadsInlineWhenLimitAllowsIt() throws {
