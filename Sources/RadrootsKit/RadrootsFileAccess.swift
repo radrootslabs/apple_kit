@@ -125,8 +125,18 @@ public protocol RadrootsFileAccess {
     func list(_ directory: RadrootsFileReference) throws -> [RadrootsFileEntry]
     func reset(scope: RadrootsFileScope) throws
     @discardableResult func stageBlob(_ data: Data, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
+    @discardableResult func stageFile(_ file: RadrootsFileReference, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
+    @discardableResult func stageExternalFile(_ sourceURL: URL, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
+    @discardableResult func copyExternalFile(
+        _ sourceURL: URL,
+        to file: RadrootsFileReference,
+        mediaType: String?,
+        suggestedFilename: String?
+    ) throws -> RadrootsImportedDocument
+    @discardableResult func prepareExport(_ request: RadrootsExportDocumentRequest) throws -> RadrootsPreparedExportDocument
     func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data
     func releaseStagedBlob(_ blob: RadrootsStagedBlobReference) throws
+    func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws
     @discardableResult func sweepStagedBlobs(olderThan cutoff: Date) throws -> [RadrootsStagedBlobReference]
     func resetStagedBlobs() throws
 }
@@ -141,16 +151,14 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     public func write(_ payload: RadrootsFilePayload, to file: RadrootsFileReference) throws {
-        let data: Data
-        switch payload {
-        case .inline(let inlineData):
-            data = inlineData
-        case .stagedBlob(let stagedBlob):
-            data = try readStagedBlob(stagedBlob)
-        }
         let url = try roots.resolvedURL(for: file)
         try createParentDirectory(for: url)
-        try data.write(to: url, options: [.atomic])
+        switch payload {
+        case .inline(let inlineData):
+            try inlineData.write(to: url, options: [.atomic])
+        case .stagedBlob(let stagedBlob):
+            try copyReplacingItem(from: try stagedBlobURL(for: stagedBlob), to: url)
+        }
     }
 
     public func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws -> RadrootsFileReadResult {
@@ -169,10 +177,10 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             if size <= maxBytes {
                 return .inline(try Data(contentsOf: url))
             }
-            let staged = try stageBlob(try Data(contentsOf: url), mediaType: nil, filenameHint: url.lastPathComponent)
+            let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
             return .stagedBlob(staged)
         case .stagedBlob:
-            let staged = try stageBlob(try Data(contentsOf: url), mediaType: nil, filenameHint: url.lastPathComponent)
+            let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
             return .stagedBlob(staged)
         }
     }
@@ -243,6 +251,89 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         return blob
     }
 
+    @discardableResult
+    public func stageFile(
+        _ file: RadrootsFileReference,
+        mediaType: String? = nil,
+        filenameHint: String? = nil
+    ) throws -> RadrootsStagedBlobReference {
+        let sourceURL = try roots.resolvedURL(for: file)
+        guard fileManager.fileExists(atPath: sourceURL.path) else {
+            throw RadrootsAppleFileError.notFound("file not found")
+        }
+        return try stageFileURL(
+            sourceURL,
+            mediaType: mediaType,
+            filenameHint: filenameHint ?? sourceURL.lastPathComponent
+        )
+    }
+
+    @discardableResult
+    public func stageExternalFile(
+        _ sourceURL: URL,
+        mediaType: String? = nil,
+        filenameHint: String? = nil
+    ) throws -> RadrootsStagedBlobReference {
+        try withSecurityScopedFile(sourceURL) { scopedURL in
+            try stageFileURL(
+                scopedURL,
+                mediaType: mediaType,
+                filenameHint: filenameHint ?? scopedURL.lastPathComponent
+            )
+        }
+    }
+
+    @discardableResult
+    public func copyExternalFile(
+        _ sourceURL: URL,
+        to file: RadrootsFileReference,
+        mediaType: String? = nil,
+        suggestedFilename: String? = nil
+    ) throws -> RadrootsImportedDocument {
+        try withSecurityScopedFile(sourceURL) { scopedURL in
+            let destinationURL = try roots.resolvedURL(for: file)
+            try createParentDirectory(for: destinationURL)
+            try copyReplacingItem(from: scopedURL, to: destinationURL)
+            let sizeBytes = try fileSizeUInt64(at: destinationURL)
+            return try RadrootsImportedDocument(
+                file: file,
+                originalURL: scopedURL,
+                suggestedFilename: suggestedFilename ?? scopedURL.lastPathComponent,
+                mediaType: mediaType,
+                sizeBytes: sizeBytes
+            )
+        }
+    }
+
+    @discardableResult
+    public func prepareExport(_ request: RadrootsExportDocumentRequest) throws -> RadrootsPreparedExportDocument {
+        let preparedID = UUID().uuidString.lowercased()
+        let directoryURL = preparedExportsRoot.appendingPathComponent(preparedID, isDirectory: true)
+        let fileURL = directoryURL.appendingPathComponent(request.suggestedFilename).standardizedFileURL
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        switch request.source {
+        case .inlineData(let data):
+            try data.write(to: fileURL, options: [.atomic])
+        case .file(let file):
+            try copyReplacingItem(from: try roots.resolvedURL(for: file), to: fileURL)
+        case .stagedBlob(let stagedBlob):
+            try copyReplacingItem(from: try stagedBlobURL(for: stagedBlob), to: fileURL)
+        }
+        let sizeBytes: UInt64
+        if let requestSizeBytes = request.sizeBytes {
+            sizeBytes = requestSizeBytes
+        } else {
+            sizeBytes = try fileSizeUInt64(at: fileURL)
+        }
+        return try RadrootsPreparedExportDocument(
+            preparedID: preparedID,
+            fileURL: fileURL,
+            suggestedFilename: request.suggestedFilename,
+            mediaType: request.mediaType,
+            sizeBytes: sizeBytes
+        )
+    }
+
     public func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data {
         let url = try stagedBlobURL(for: blob)
         guard fileManager.fileExists(atPath: url.path) else {
@@ -259,6 +350,13 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         let url = try stagedBlobURL(for: blob)
         if fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
+        }
+    }
+
+    public func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws {
+        let directoryURL = try preparedExportDirectoryURL(for: preparedExport)
+        if fileManager.fileExists(atPath: directoryURL.path) {
+            try fileManager.removeItem(at: directoryURL)
         }
     }
 
@@ -312,16 +410,88 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         return roots.stagedBlobsRoot.appendingPathComponent(normalizedBlobID).standardizedFileURL
     }
 
+    private var preparedExportsRoot: URL {
+        roots.temporaryRoot.appendingPathComponent("prepared_exports", isDirectory: true).standardizedFileURL
+    }
+
+    private func preparedExportDirectoryURL(for preparedExport: RadrootsPreparedExportDocument) throws -> URL {
+        let normalizedPreparedID = try RadrootsPreparedExportDocument.normalizedPreparedID(preparedExport.preparedID)
+        let directoryURL = preparedExportsRoot.appendingPathComponent(normalizedPreparedID, isDirectory: true).standardizedFileURL
+        guard preparedExport.fileURL.standardizedFileURL.path.hasPrefix(directoryURL.path + "/") else {
+            throw RadrootsAppleFileError.invalidRequest("prepared export file escaped its directory")
+        }
+        return directoryURL
+    }
+
+    private func stageFileURL(
+        _ sourceURL: URL,
+        mediaType: String?,
+        filenameHint: String?
+    ) throws -> RadrootsStagedBlobReference {
+        let sizeBytes = try fileSizeInt(at: sourceURL)
+        let blobID = UUID().uuidString.lowercased()
+        let blob = try RadrootsStagedBlobReference(
+            blobID: blobID,
+            sizeBytes: sizeBytes,
+            mediaType: mediaType,
+            filenameHint: filenameHint
+        )
+        let destinationURL = try stagedBlobURL(for: blob)
+        try fileManager.createDirectory(at: roots.stagedBlobsRoot, withIntermediateDirectories: true)
+        try copyReplacingItem(from: sourceURL, to: destinationURL)
+        return blob
+    }
+
+    private func withSecurityScopedFile<T>(_ sourceURL: URL, _ body: (URL) throws -> T) throws -> T {
+        guard sourceURL.isFileURL else {
+            throw RadrootsAppleFileError.invalidRequest("external file url must be a file url")
+        }
+        let scopedURL = sourceURL.standardizedFileURL
+        var isDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: scopedURL.path, isDirectory: &isDirectory) else {
+            throw RadrootsAppleFileError.notFound("external file not found")
+        }
+        guard !isDirectory.boolValue else {
+            throw RadrootsAppleFileError.invalidRequest("external file url must reference a file")
+        }
+        let didStartScope = scopedURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartScope {
+                scopedURL.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try body(scopedURL)
+    }
+
+    private func copyReplacingItem(from sourceURL: URL, to destinationURL: URL) throws {
+        guard sourceURL.isFileURL, destinationURL.isFileURL else {
+            throw RadrootsAppleFileError.invalidRequest("copy source and destination must be file urls")
+        }
+        try createParentDirectory(for: destinationURL)
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.copyItem(at: sourceURL, to: destinationURL)
+    }
+
     private func createParentDirectory(for url: URL) throws {
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
 
     private func fileSize(at url: URL) throws -> Int {
+        try fileSizeInt(at: url)
+    }
+
+    private func fileSizeInt(at url: URL) throws -> Int {
         let values = try url.resourceValues(forKeys: [.fileSizeKey])
         guard let size = values.fileSize else {
             throw RadrootsAppleFileError.permanentFailure("file size is unavailable")
         }
         return size
+    }
+
+    private func fileSizeUInt64(at url: URL) throws -> UInt64 {
+        UInt64(try fileSizeInt(at: url))
     }
 
     private func relativePath(for url: URL, under rootURL: URL) throws -> String {

@@ -252,6 +252,47 @@ public struct RadrootsExportDocumentResult: Sendable, Equatable, Hashable {
     }
 }
 
+public struct RadrootsPreparedExportDocument: Sendable, Equatable, Hashable {
+    public let preparedID: String
+    public let fileURL: URL
+    public let suggestedFilename: String
+    public let mediaType: String?
+    public let sizeBytes: UInt64?
+
+    public init(
+        preparedID: String,
+        fileURL: URL,
+        suggestedFilename: String,
+        mediaType: String?,
+        sizeBytes: UInt64?
+    ) throws {
+        self.preparedID = try Self.normalizedPreparedID(preparedID)
+        self.fileURL = try Self.normalizedFileURL(fileURL)
+        self.suggestedFilename = try RadrootsDocumentInterchangeValidation.normalizedFilename(suggestedFilename)
+        self.mediaType = try RadrootsDocumentInterchangeValidation.normalizedMediaType(mediaType)
+        self.sizeBytes = sizeBytes
+    }
+
+    public static func normalizedPreparedID(_ preparedID: String) throws -> String {
+        let trimmed = preparedID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("prepared export id cannot be empty")
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        guard trimmed.rangeOfCharacter(from: allowed.inverted) == nil else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("prepared export id contains invalid characters")
+        }
+        return trimmed
+    }
+
+    public static func normalizedFileURL(_ fileURL: URL) throws -> URL {
+        guard fileURL.isFileURL else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("prepared export url must be a file url")
+        }
+        return fileURL.standardizedFileURL
+    }
+}
+
 public enum RadrootsDocumentInterchangeValidation {
     public static func normalizedFilename(_ filename: String) throws -> String {
         let trimmed = filename.trimmingCharacters(in: .whitespacesAndNewlines)
