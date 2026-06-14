@@ -22,7 +22,11 @@ let package = Package(
             name: "RadrootsKit",
             linkerSettings: [
                 .linkedFramework("Security"),
-                .linkedFramework("LocalAuthentication")
+                .linkedFramework("LocalAuthentication"),
+                .linkedFramework("UserNotifications"),
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("Photos"),
+                .linkedFramework("CoreLocation")
             ]
         ),
         .target(
