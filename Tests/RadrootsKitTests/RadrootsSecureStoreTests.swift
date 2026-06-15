@@ -146,9 +146,9 @@ import Testing
     #expect(try store.get(key) == nil)
 }
 
-@Test func userPresenceStatusIsInspectable() async {
+@Test func userPresenceStatusIsInspectable() async throws {
     let userPresence = RadrootsAppleUserPresence()
-    let status = await userPresence.currentStatus()
+    let status = try await userPresence.currentStatus()
     switch status.support {
     case .none, .deviceCredential, .biometricsOrDeviceCredential:
         break
