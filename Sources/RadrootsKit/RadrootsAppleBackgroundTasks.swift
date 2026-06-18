@@ -53,9 +53,9 @@ public struct RadrootsAppleBackgroundTaskSchedulerAdapters: Sendable {
                     using: nil
                 ) { task in
                     Task {
-                        let success = await registration.handler()
-                        task.setTaskCompleted(success: success)
+                        _ = await registration.handler()
                     }
+                    task.setTaskCompleted(success: true)
                 }
             },
             submit: { request in
@@ -142,38 +142,42 @@ private extension RadrootsAppleBackgroundTaskSchedulerAdapters {
     }
 
     static func pendingPlatformTaskSnapshots() async throws -> [RadrootsBackgroundTaskSnapshot] {
-        let requests = await withCheckedContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[RadrootsBackgroundTaskSnapshot], Error>) in
             BGTaskScheduler.shared.getPendingTaskRequests { requests in
-                continuation.resume(returning: requests)
+                do {
+                    let snapshots: [RadrootsBackgroundTaskSnapshot] = try requests.compactMap { request -> RadrootsBackgroundTaskSnapshot? in
+                        guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier) else {
+                            return nil
+                        }
+                        let kind: RadrootsBackgroundTaskKind
+                        let requiresNetworkConnectivity: Bool
+                        let requiresExternalPower: Bool
+                        if let processingRequest = request as? BGProcessingTaskRequest {
+                            kind = .processing
+                            requiresNetworkConnectivity = processingRequest.requiresNetworkConnectivity
+                            requiresExternalPower = processingRequest.requiresExternalPower
+                        } else {
+                            kind = .appRefresh
+                            requiresNetworkConnectivity = false
+                            requiresExternalPower = false
+                        }
+                        return try RadrootsBackgroundTaskSnapshot(
+                            identifier: identifier,
+                            kind: kind,
+                            earliestBeginDate: request.earliestBeginDate,
+                            submittedAt: Date(),
+                            requiresNetworkConnectivity: requiresNetworkConnectivity,
+                            requiresExternalPower: requiresExternalPower
+                        )
+                    }
+                    .sorted { left, right in
+                        left.identifier.rawValue < right.identifier.rawValue
+                    }
+                    continuation.resume(returning: snapshots)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
-        }
-        return try requests.compactMap { request in
-            guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier) else {
-                return nil
-            }
-            let kind: RadrootsBackgroundTaskKind
-            let requiresNetworkConnectivity: Bool
-            let requiresExternalPower: Bool
-            if let processingRequest = request as? BGProcessingTaskRequest {
-                kind = .processing
-                requiresNetworkConnectivity = processingRequest.requiresNetworkConnectivity
-                requiresExternalPower = processingRequest.requiresExternalPower
-            } else {
-                kind = .appRefresh
-                requiresNetworkConnectivity = false
-                requiresExternalPower = false
-            }
-            return try RadrootsBackgroundTaskSnapshot(
-                identifier: identifier,
-                kind: kind,
-                earliestBeginDate: request.earliestBeginDate,
-                submittedAt: Date(),
-                requiresNetworkConnectivity: requiresNetworkConnectivity,
-                requiresExternalPower: requiresExternalPower
-            )
-        }
-        .sorted { left, right in
-            left.identifier < right.identifier
         }
     }
 }
