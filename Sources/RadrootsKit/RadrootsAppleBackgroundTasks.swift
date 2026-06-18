@@ -52,10 +52,18 @@ public struct RadrootsAppleBackgroundTaskSchedulerAdapters: Sendable {
                     forTaskWithIdentifier: registration.identifier.rawValue,
                     using: nil
                 ) { task in
-                    Task {
-                        _ = await registration.handler()
+                    let completion = RadrootsAppleBackgroundTaskCompletion(task: task)
+                    let handlerTask = Task {
+                        await registration.handler()
                     }
-                    task.setTaskCompleted(success: true)
+                    task.expirationHandler = {
+                        handlerTask.cancel()
+                        completion.complete(success: false)
+                    }
+                    Task {
+                        let success = await handlerTask.value
+                        completion.complete(success: success)
+                    }
                 }
             },
             submit: { request in
@@ -179,6 +187,28 @@ private extension RadrootsAppleBackgroundTaskSchedulerAdapters {
                 }
             }
         }
+    }
+}
+#endif
+
+#if canImport(BackgroundTasks) && os(iOS)
+private final class RadrootsAppleBackgroundTaskCompletion: @unchecked Sendable {
+    private let task: BGTask
+    private let lock = NSLock()
+    private var completed = false
+
+    init(task: BGTask) {
+        self.task = task
+    }
+
+    func complete(success: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !completed else {
+            return
+        }
+        completed = true
+        task.setTaskCompleted(success: success)
     }
 }
 #endif
