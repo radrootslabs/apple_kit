@@ -63,6 +63,22 @@ import Testing
     }
 }
 
+@Test func appleBackgroundTaskSchedulerMapsRegistrationRejectionToTypedFailure() async throws {
+    let probe = RadrootsAppleBackgroundTaskSchedulerProbe(registerResult: false)
+    let scheduler = RadrootsAppleBackgroundTaskScheduler(adapters: probe.adapters())
+    let identifier = try RadrootsBackgroundTaskIdentifier("org.radroots.field-ios.background.refresh")
+    let registration = RadrootsAppleBackgroundTaskRegistration(
+        identifier: identifier,
+        kind: .appRefresh,
+        handler: { true }
+    )
+
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure("background task registration was rejected")) {
+        _ = try await scheduler.register(registration)
+    }
+    #expect(await probe.registeredIdentifiers == [identifier])
+}
+
 private actor RadrootsAppleBackgroundTaskSchedulerProbe {
     private let nowValue: Date
     private let registerResult: Bool

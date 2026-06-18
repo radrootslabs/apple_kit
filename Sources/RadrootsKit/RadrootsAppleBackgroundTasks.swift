@@ -108,7 +108,13 @@ public final class RadrootsAppleBackgroundTaskScheduler: RadrootsBackgroundTaskS
 
     @discardableResult
     public func register(_ registration: RadrootsAppleBackgroundTaskRegistration) async throws -> Bool {
-        try await adapters.register(registration)
+        let registered = try await adapters.register(registration)
+        guard registered else {
+            throw RadrootsBackgroundTaskError.schedulerFailure(
+                "background task registration was rejected"
+            )
+        }
+        return registered
     }
 
     public func submit(_ request: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot {
