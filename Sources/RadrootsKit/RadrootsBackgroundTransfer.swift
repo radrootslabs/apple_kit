@@ -175,6 +175,10 @@ public protocol RadrootsBackgroundTransfer: Sendable {
     func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws
     func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws -> RadrootsBackgroundTransferSnapshot?
     func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot]
+    func handleEventsForBackgroundURLSession(
+        identifier: String,
+        completionHandler: @escaping @Sendable () -> Void
+    ) async
 }
 
 public protocol RadrootsBackgroundTransferFileResolver: Sendable {
@@ -286,6 +290,13 @@ public struct RadrootsUnavailableBackgroundTransfer: RadrootsBackgroundTransfer,
 
     public func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
         throw RadrootsBackgroundTransferError.unavailable(reason)
+    }
+
+    public func handleEventsForBackgroundURLSession(
+        identifier: String,
+        completionHandler: @escaping @Sendable () -> Void
+    ) async {
+        completionHandler()
     }
 }
 

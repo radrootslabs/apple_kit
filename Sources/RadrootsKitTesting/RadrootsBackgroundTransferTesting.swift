@@ -32,6 +32,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     private var enqueueOutcome: Result<Void, RadrootsBackgroundTransferError>
     private var enqueuedRequestsValue: [RadrootsBackgroundTransferRequest]
     private var cancelledIdentifiersValue: [RadrootsBackgroundTransferIdentifier]
+    private var handledBackgroundEventIdentifiersValue: [String]
     private let updatedAt: Date
 
     public init(
@@ -43,6 +44,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
         self.enqueueOutcome = enqueueOutcome
         self.enqueuedRequestsValue = []
         self.cancelledIdentifiersValue = []
+        self.handledBackgroundEventIdentifiersValue = []
         self.updatedAt = updatedAt
     }
 
@@ -114,11 +116,23 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
         try await store.loadSnapshots()
     }
 
+    public func handleEventsForBackgroundURLSession(
+        identifier: String,
+        completionHandler: @escaping @Sendable () -> Void
+    ) async {
+        handledBackgroundEventIdentifiersValue.append(identifier)
+        completionHandler()
+    }
+
     public var enqueuedRequests: [RadrootsBackgroundTransferRequest] {
         enqueuedRequestsValue
     }
 
     public var cancelledIdentifiers: [RadrootsBackgroundTransferIdentifier] {
         cancelledIdentifiersValue
+    }
+
+    public var handledBackgroundEventIdentifiers: [String] {
+        handledBackgroundEventIdentifiersValue
     }
 }
