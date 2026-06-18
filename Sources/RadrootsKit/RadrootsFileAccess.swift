@@ -1,13 +1,13 @@
 import Foundation
 
-public enum RadrootsFileScope: Sendable, Equatable, CaseIterable {
+public enum RadrootsFileScope: Sendable, Equatable, CaseIterable, Codable {
     case data
     case cache
     case temporary
     case logs
 }
 
-public struct RadrootsFileReference: Sendable, Equatable, Hashable {
+public struct RadrootsFileReference: Sendable, Equatable, Hashable, Codable {
     public let scope: RadrootsFileScope
     public let relativePath: String
 
@@ -39,7 +39,7 @@ public struct RadrootsFileEntry: Sendable, Equatable, Hashable {
     }
 }
 
-public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable {
+public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codable {
     public let blobID: String
     public let sizeBytes: Int
     public let mediaType: String?
@@ -413,8 +413,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     private func stagedBlobURL(for blob: RadrootsStagedBlobReference) throws -> URL {
-        let normalizedBlobID = try RadrootsStagedBlobReference.normalizedBlobID(blob.blobID)
-        return roots.stagedBlobsRoot.appendingPathComponent(normalizedBlobID).standardizedFileURL
+        try roots.stagedBlobURL(for: blob)
     }
 
     private var preparedExportsRoot: URL {
@@ -614,6 +613,11 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             throw RadrootsAppleFileError.invalidRequest("file relative path must not escape its scope")
         }
         return candidateURL
+    }
+
+    public func stagedBlobURL(for blob: RadrootsStagedBlobReference) throws -> URL {
+        let normalizedBlobID = try RadrootsStagedBlobReference.normalizedBlobID(blob.blobID)
+        return stagedBlobsRoot.appendingPathComponent(normalizedBlobID).standardizedFileURL
     }
 
     public static func normalizedAppIdentifier(_ appIdentifier: String) throws -> String {
