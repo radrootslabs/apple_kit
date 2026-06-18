@@ -46,34 +46,148 @@ public enum RadrootsDocumentPresentationAdapter {
     }
 
     public static func transferItem(for request: RadrootsShareRequest) throws -> RadrootsShareTransferItem {
+        try transferItem(for: request, fileAccess: nil)
+    }
+
+    public static func transferItem(
+        for request: RadrootsShareRequest,
+        fileAccess: any RadrootsFileAccess
+    ) throws -> RadrootsShareTransferItem {
+        let optionalFileAccess: (any RadrootsFileAccess)? = fileAccess
+        return try transferItem(for: request, fileAccess: optionalFileAccess)
+    }
+
+    private static func transferItem(
+        for request: RadrootsShareRequest,
+        fileAccess: (any RadrootsFileAccess)?
+    ) throws -> RadrootsShareTransferItem {
         for item in request.items {
             switch try item.normalized {
             case .text(let text):
                 return try RadrootsShareTransferItem(text: text, subject: request.subject)
             case .url(let url):
-                return try RadrootsShareTransferItem(text: url.absoluteString, subject: request.subject)
-            case .file, .stagedBlob:
-                continue
+                return try RadrootsShareTransferItem(url: url, subject: request.subject)
+            case .file(let file, let suggestedFilename, let mediaType, let sizeBytes):
+                guard let fileAccess else {
+                    continue
+                }
+                let export = try fileAccess.prepareExport(
+                    RadrootsExportDocumentRequest(
+                        source: .file(file),
+                        suggestedFilename: try shareFilename(
+                            explicitFilename: suggestedFilename,
+                            fallbackFilename: NSString(string: file.relativePath).lastPathComponent
+                        ),
+                        mediaType: mediaType,
+                        sizeBytes: sizeBytes
+                    )
+                )
+                return try RadrootsShareTransferItem(preparedExport: export, subject: request.subject)
+            case .stagedBlob(let stagedBlob, let suggestedFilename):
+                guard let fileAccess else {
+                    continue
+                }
+                let export = try fileAccess.prepareExport(
+                    RadrootsExportDocumentRequest(
+                        source: .stagedBlob(stagedBlob),
+                        suggestedFilename: try shareFilename(
+                            explicitFilename: suggestedFilename,
+                            fallbackFilename: stagedBlob.filenameHint ?? stagedBlob.blobID
+                        ),
+                        mediaType: stagedBlob.mediaType,
+                        sizeBytes: UInt64(stagedBlob.sizeBytes)
+                    )
+                )
+                return try RadrootsShareTransferItem(preparedExport: export, subject: request.subject)
             }
         }
-        throw RadrootsDocumentInterchangeError.invalidRequest("share request does not contain a public text or url item")
+        throw RadrootsDocumentInterchangeError.invalidRequest("share request does not contain a supported public share item")
+    }
+
+    private static func shareFilename(explicitFilename: String?, fallbackFilename: String) throws -> String {
+        if let explicitFilename {
+            return try RadrootsDocumentInterchangeValidation.normalizedFilename(explicitFilename)
+        }
+        let fallback = fallbackFilename.trimmingCharacters(in: .whitespacesAndNewlines)
+        if fallback.isEmpty {
+            return "radroots-share-item"
+        }
+        return try RadrootsDocumentInterchangeValidation.normalizedFilename(fallback)
     }
 }
 
 public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hashable {
-    public let text: String
+    public enum Payload: Sendable, Equatable, Hashable {
+        case text(String)
+        case url(URL)
+        case file(RadrootsPreparedExportDocument)
+    }
+
+    public let payload: Payload
     public let subject: String?
 
     public init(text: String, subject: String? = nil) throws {
-        self.text = try RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text")
+        self.payload = .text(try RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text"))
         self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
             subject,
             field: "share transfer subject"
         )
     }
 
+    public init(url: URL, subject: String? = nil) throws {
+        self.payload = .url(try RadrootsDocumentInterchangeValidation.normalizedPublicURL(url))
+        self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
+            subject,
+            field: "share transfer subject"
+        )
+    }
+
+    public init(preparedExport: RadrootsPreparedExportDocument, subject: String? = nil) throws {
+        self.payload = .file(preparedExport)
+        self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
+            subject,
+            field: "share transfer subject"
+        )
+    }
+
+    public var text: String? {
+        switch payload {
+        case .text(let text):
+            text
+        case .url(let url):
+            url.absoluteString
+        case .file:
+            nil
+        }
+    }
+
+    public var url: URL? {
+        guard case .url(let url) = payload else {
+            return nil
+        }
+        return url
+    }
+
+    public var preparedExport: RadrootsPreparedExportDocument? {
+        guard case .file(let preparedExport) = payload else {
+            return nil
+        }
+        return preparedExport
+    }
+
+    public var transferText: String {
+        switch payload {
+        case .text(let text):
+            text
+        case .url(let url):
+            url.absoluteString
+        case .file(let preparedExport):
+            preparedExport.suggestedFilename
+        }
+    }
+
     public static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation(exporting: \.text)
+        ProxyRepresentation(exporting: \.transferText)
     }
 }
 
@@ -225,13 +339,43 @@ public struct RadrootsSharePresentationLink<Label: View>: View {
         self.label = label
     }
 
-    public var body: some View {
-        ShareLink(
-            item: transferItem.text,
-            subject: transferItem.subject.map(Text.init) ?? Text(""),
-            message: Text(transferItem.text),
-            label: label
+    public init(
+        request: RadrootsShareRequest,
+        fileAccess: any RadrootsFileAccess,
+        @ViewBuilder label: @escaping () -> Label
+    ) throws {
+        self.transferItem = try RadrootsDocumentPresentationAdapter.transferItem(
+            for: request,
+            fileAccess: fileAccess
         )
+        self.label = label
+    }
+
+    @ViewBuilder
+    public var body: some View {
+        switch transferItem.payload {
+        case .text(let text):
+            ShareLink(
+                item: text,
+                subject: transferItem.subject.map(Text.init) ?? Text(""),
+                message: Text(text),
+                label: label
+            )
+        case .url(let url):
+            ShareLink(
+                item: url,
+                subject: transferItem.subject.map(Text.init) ?? Text(""),
+                message: Text(url.absoluteString),
+                label: label
+            )
+        case .file(let preparedExport):
+            ShareLink(
+                item: preparedExport.fileURL,
+                subject: transferItem.subject.map(Text.init) ?? Text(""),
+                message: Text(preparedExport.suggestedFilename),
+                label: label
+            )
+        }
     }
 }
 

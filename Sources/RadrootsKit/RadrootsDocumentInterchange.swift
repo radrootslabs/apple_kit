@@ -133,8 +133,9 @@ public enum RadrootsShareItem: Sendable, Equatable, Hashable {
         mediaType: String? = nil,
         sizeBytes: UInt64? = nil
     ) throws -> Self {
-        .file(
-            file,
+        let normalizedFile = try RadrootsDocumentInterchangeValidation.normalizedScopedFileReference(file)
+        return .file(
+            normalizedFile,
             suggestedFilename: try RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename),
             mediaType: try RadrootsDocumentInterchangeValidation.normalizedMediaType(mediaType),
             sizeBytes: sizeBytes
@@ -145,7 +146,11 @@ public enum RadrootsShareItem: Sendable, Equatable, Hashable {
         _ stagedBlob: RadrootsStagedBlobReference,
         suggestedFilename: String? = nil
     ) throws -> Self {
-        .stagedBlob(
+        try RadrootsDocumentInterchangeValidation.validateNoSecretMaterial(
+            stagedBlob.filenameHint,
+            field: "staged blob filename hint"
+        )
+        return .stagedBlob(
             stagedBlob,
             suggestedFilename: try RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename)
         )
@@ -314,6 +319,7 @@ public enum RadrootsDocumentInterchangeValidation {
         guard trimmed.utf8.count <= 255 else {
             throw RadrootsDocumentInterchangeError.invalidRequest("document filename is too long")
         }
+        try validateNoSecretMaterial(trimmed, field: "document filename")
         return trimmed
     }
 
@@ -347,6 +353,7 @@ public enum RadrootsDocumentInterchangeValidation {
         guard !trimmed.isEmpty else {
             throw RadrootsDocumentInterchangeError.invalidRequest("\(field) cannot be empty")
         }
+        try validateNoSecretMaterial(trimmed, field: field)
         return trimmed
     }
 
@@ -364,6 +371,51 @@ public enum RadrootsDocumentInterchangeValidation {
         guard url.host != nil else {
             throw RadrootsDocumentInterchangeError.invalidRequest("share url must include a host")
         }
+        try validateNoSecretMaterial(url.absoluteString, field: "share url")
         return url
+    }
+
+    public static func normalizedScopedFileReference(_ file: RadrootsFileReference) throws -> RadrootsFileReference {
+        let trimmed = file.relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot be empty")
+        }
+        guard !NSString(string: trimmed).isAbsolutePath else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot be absolute")
+        }
+        guard !trimmed.contains("\\") && !trimmed.contains("\0") else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot contain unsafe separators")
+        }
+        guard trimmed.rangeOfCharacter(from: .controlCharacters) == nil else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot contain control characters")
+        }
+        let components = trimmed.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot contain empty or parent segments")
+        }
+        try validateNoSecretMaterial(trimmed, field: "share file path")
+        return RadrootsFileReference(scope: file.scope, relativePath: trimmed)
+    }
+
+    public static func validateNoSecretMaterial(_ value: String?, field: String) throws {
+        guard let value else {
+            return
+        }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else {
+            return
+        }
+        let unsafeFragments = [
+            "nsec",
+            "secret_hex",
+            "selected_secret",
+            "private_key",
+            "private key",
+            "secret_key",
+            "secret key"
+        ]
+        guard !unsafeFragments.contains(where: normalized.contains) else {
+            throw RadrootsDocumentInterchangeError.invalidRequest("\(field) cannot contain secret material")
+        }
     }
 }
