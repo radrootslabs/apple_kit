@@ -94,7 +94,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         return try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
             timeout: callbackTimeout,
             timeoutMessage: "timed out while presenting media import"
-        ) { completion in
+        ) { completion, setCleanup in
             var configuration = PHPickerConfiguration(photoLibrary: .shared())
             configuration.selectionLimit = request.selectionLimit
             configuration.filter = .images
@@ -106,6 +106,9 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             )
             coordinator.completion = completion
             picker.delegate = coordinator
+            setCleanup {
+                coordinator.cancelPresentation(picker)
+            }
             RadrootsApplePresentationRetainer.shared.store(coordinator, id: coordinatorID)
             presenter.present(picker, animated: true)
         }
@@ -129,7 +132,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         return try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
             timeout: callbackTimeout,
             timeoutMessage: "timed out while presenting camera photo capture"
-        ) { completion in
+        ) { completion, setCleanup in
             let picker = UIImagePickerController()
             picker.sourceType = .camera
             picker.mediaTypes = [Self.imageTypeIdentifier()]
@@ -141,6 +144,9 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             )
             coordinator.completion = completion
             picker.delegate = coordinator
+            setCleanup {
+                coordinator.cancelPresentation(picker)
+            }
             RadrootsApplePresentationRetainer.shared.store(coordinator, id: coordinatorID)
             presenter.present(picker, animated: true)
         }
@@ -366,6 +372,12 @@ private final class RadrootsApplePhotoPickerCoordinator: NSObject, PHPickerViewC
         #endif
     }
 
+    func cancelPresentation(_ picker: PHPickerViewController) {
+        guard !didResolve else { return }
+        picker.dismiss(animated: true)
+        finish(.failure(.transientFailure("media import presentation was cancelled")))
+    }
+
     private func finish(_ result: Result<RadrootsMediaImportResult, RadrootsCaptureIntakeError>) {
         guard !didResolve else { return }
         didResolve = true
@@ -432,6 +444,12 @@ private final class RadrootsAppleCameraCaptureCoordinator: NSObject, UIImagePick
             image: image,
             destinationScope: request.destinationScope
         )
+    }
+
+    func cancelPresentation(_ picker: UIImagePickerController) {
+        guard !didResolve else { return }
+        picker.dismiss(animated: true)
+        finish(.failure(.transientFailure("camera photo capture presentation was cancelled")))
     }
 
     private func finish(_ result: Result<RadrootsMediaCaptureResult, RadrootsCaptureIntakeError>) {
@@ -636,25 +654,38 @@ enum RadrootsAppleCaptureAsyncSupport {
     static func awaitMainActorCallback<Value: Sendable>(
         timeout: TimeInterval,
         timeoutMessage: String,
-        operation: @escaping @MainActor (@escaping @Sendable (Result<Value, RadrootsCaptureIntakeError>) -> Void) -> Void
+        operation: @escaping @MainActor (
+            @escaping @Sendable (Result<Value, RadrootsCaptureIntakeError>) -> Void,
+            @escaping @MainActor @Sendable (@escaping @MainActor @Sendable () -> Void) -> Void
+        ) -> Void
     ) async throws -> Value {
-        try await withCheckedThrowingContinuation { continuation in
-            let state = RadrootsAppleCaptureAsyncCallbackState(continuation: continuation)
-            let timeoutTask = Task {
-                let nanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
-                do {
-                    try await Task.sleep(nanoseconds: nanoseconds)
-                } catch {
-                    return
+        let state = RadrootsAppleCaptureAsyncCallbackState<Value>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                state.start(continuation: continuation)
+                let timeoutTask = Task {
+                    let nanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
+                    do {
+                        try await Task.sleep(nanoseconds: nanoseconds)
+                    } catch {
+                        return
+                    }
+                    state.resolve(.failure(.transientFailure(timeoutMessage)))
                 }
-                state.resolve(.failure(.transientFailure(timeoutMessage)))
-            }
-            Task { @MainActor in
-                operation { result in
-                    timeoutTask.cancel()
-                    state.resolve(result)
+                Task { @MainActor in
+                    operation(
+                        { result in
+                            timeoutTask.cancel()
+                            state.resolve(result)
+                        },
+                        { cleanup in
+                            state.setCleanup(cleanup)
+                        }
+                    )
                 }
             }
+        } onCancel: {
+            state.resolve(.failure(.userCancelled("capture request was cancelled")))
         }
     }
 }
@@ -662,24 +693,74 @@ enum RadrootsAppleCaptureAsyncSupport {
 private final class RadrootsAppleCaptureAsyncCallbackState<Value: Sendable>: @unchecked Sendable {
     private let lock: NSLock
     private var continuation: CheckedContinuation<Value, any Error>?
+    private var cleanup: (@MainActor @Sendable () -> Void)?
+    private var resolvedResult: Result<Value, RadrootsCaptureIntakeError>?
     private var didResolve: Bool
 
-    init(continuation: CheckedContinuation<Value, any Error>) {
+    init() {
         self.lock = NSLock()
-        self.continuation = continuation
+        self.continuation = nil
+        self.cleanup = nil
+        self.resolvedResult = nil
         self.didResolve = false
+    }
+
+    func start(continuation: CheckedContinuation<Value, any Error>) {
+        lock.lock()
+        if let resolvedResult {
+            lock.unlock()
+            resume(continuation, with: resolvedResult)
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func setCleanup(_ cleanup: @escaping @MainActor @Sendable () -> Void) {
+        lock.lock()
+        let shouldRun = didResolve
+        if !didResolve {
+            self.cleanup = cleanup
+        }
+        lock.unlock()
+        if shouldRun {
+            Task { @MainActor in
+                cleanup()
+            }
+        }
     }
 
     func resolve(_ result: Result<Value, RadrootsCaptureIntakeError>) {
         lock.lock()
-        guard !didResolve, let continuation else {
+        guard !didResolve else {
             lock.unlock()
             return
         }
         didResolve = true
+        let continuation = self.continuation
         self.continuation = nil
+        if continuation == nil {
+            self.resolvedResult = result
+        }
+        let cleanup = self.cleanup
+        self.cleanup = nil
         lock.unlock()
 
+        if let cleanup {
+            Task { @MainActor in
+                cleanup()
+            }
+        }
+        guard let continuation else {
+            return
+        }
+        resume(continuation, with: result)
+    }
+
+    private func resume(
+        _ continuation: CheckedContinuation<Value, any Error>,
+        with result: Result<Value, RadrootsCaptureIntakeError>
+    ) {
         switch result {
         case .success(let value):
             continuation.resume(returning: value)

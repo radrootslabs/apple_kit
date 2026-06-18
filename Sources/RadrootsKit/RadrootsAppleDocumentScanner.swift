@@ -76,7 +76,7 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
         return try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
             timeout: callbackTimeout,
             timeoutMessage: "timed out while presenting document scanner"
-        ) { completion in
+        ) { completion, setCleanup in
             let controller = VNDocumentCameraViewController()
             let coordinator = RadrootsAppleDocumentScannerCoordinator(
                 writer: writer,
@@ -85,6 +85,9 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
             )
             coordinator.completion = completion
             controller.delegate = coordinator
+            setCleanup {
+                coordinator.cancelPresentation(controller)
+            }
             RadrootsApplePresentationRetainer.shared.store(coordinator, id: coordinatorID)
             presenter.present(controller, animated: true)
         }
@@ -198,6 +201,12 @@ private final class RadrootsAppleDocumentScannerCoordinator: NSObject, @preconcu
             ),
             size: scaledSize
         )
+    }
+
+    func cancelPresentation(_ controller: VNDocumentCameraViewController) {
+        guard !didResolve else { return }
+        controller.dismiss(animated: true)
+        finish(.failure(.transientFailure("document scanner presentation was cancelled")))
     }
 
     private func finish(_ result: Result<RadrootsScannedDocument, RadrootsCaptureIntakeError>) {
