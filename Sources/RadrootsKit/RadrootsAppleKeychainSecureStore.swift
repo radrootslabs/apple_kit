@@ -3,9 +3,19 @@ import Security
 
 public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unchecked Sendable {
     public let servicePrefix: String
+    private let accessControlFactory: (RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl
 
     public init(servicePrefix: String = "org.radroots.kit.secure-store") {
         self.servicePrefix = servicePrefix
+        self.accessControlFactory = Self.makeAccessControl(for:)
+    }
+
+    init(
+        servicePrefix: String = "org.radroots.kit.secure-store",
+        accessControlFactory: @escaping (RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl
+    ) {
+        self.servicePrefix = servicePrefix
+        self.accessControlFactory = accessControlFactory
     }
 
     public func put(
@@ -13,21 +23,23 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         for key: RadrootsSecureStoreKey,
         policy: RadrootsSecretAccessPolicy = .secureLocalSecret
     ) throws {
-        try delete(key)
+        let attributes = try mutationAttributes(value, policy: policy)
+        var addQuery = try baseQuery(for: key)
+        addQuery.merge(attributes) { _, new in new }
 
-        var query = try baseQuery(for: key)
-        query[kSecValueData as String] = value
-
-        let mapping = keychainPolicyMapping(for: policy)
-        if mapping.usesAccessControl {
-            query[kSecAttrAccessControl as String] = try accessControl(for: mapping)
-        } else {
-            query[kSecAttrAccessible as String] = mapping.accessibilityConstant
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        switch addStatus {
+        case errSecSuccess:
+            return
+        case errSecDuplicateItem:
+            break
+        default:
+            throw Self.mapStatus(addStatus, defaultMessage: "keychain write failed")
         }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw Self.mapStatus(status, defaultMessage: "keychain write failed")
+        let updateStatus = SecItemUpdate(try baseQuery(for: key) as CFDictionary, attributes as CFDictionary)
+        guard updateStatus == errSecSuccess else {
+            throw Self.mapStatus(updateStatus, defaultMessage: "keychain update failed")
         }
     }
 
@@ -123,6 +135,26 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     }
 
     func accessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl {
+        try accessControlFactory(mapping)
+    }
+
+    private func mutationAttributes(
+        _ value: Data,
+        policy: RadrootsSecretAccessPolicy
+    ) throws -> [String: Any] {
+        let mapping = keychainPolicyMapping(for: policy)
+        var attributes: [String: Any] = [
+            kSecValueData as String: value
+        ]
+        if mapping.usesAccessControl {
+            attributes[kSecAttrAccessControl as String] = try accessControl(for: mapping)
+        } else {
+            attributes[kSecAttrAccessible as String] = mapping.accessibilityConstant
+        }
+        return attributes
+    }
+
+    private static func makeAccessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl {
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,

@@ -84,6 +84,39 @@ import Testing
     #expect(try store.contains(key) == false)
 }
 
+@Test func keychainStoreReplacesExistingSecret() throws {
+    let store = RadrootsAppleKeychainSecureStore(
+        servicePrefix: "org.radroots.tests.\(UUID().uuidString)"
+    )
+    let key = RadrootsSecureStoreKey(namespace: "replacement", name: "token")
+
+    try store.put(Data("old-secret".utf8), for: key)
+    try store.put(Data("new-secret".utf8), for: key)
+
+    #expect(try store.get(key) == Data("new-secret".utf8))
+    try store.delete(key)
+}
+
+@Test func keychainStorePreservesExistingSecretWhenReplacementPreparationFails() throws {
+    let servicePrefix = "org.radroots.tests.\(UUID().uuidString)"
+    let key = RadrootsSecureStoreKey(namespace: "replacement-failure", name: "token")
+    let store = RadrootsAppleKeychainSecureStore(servicePrefix: servicePrefix)
+    let failingStore = RadrootsAppleKeychainSecureStore(
+        servicePrefix: servicePrefix,
+        accessControlFactory: { _ in
+            throw RadrootsAppleSecurityError.invalidRequest("forced access control failure")
+        }
+    )
+
+    try store.put(Data("old-secret".utf8), for: key)
+    #expect(throws: RadrootsAppleSecurityError.self) {
+        try failingStore.put(Data("new-secret".utf8), for: key, policy: .userPresenceLocalSecret)
+    }
+
+    #expect(try store.get(key) == Data("old-secret".utf8))
+    try store.delete(key)
+}
+
 @Test func secureLocalSecretMapsToDeviceLocalWhenUnlockedKeychainPolicy() {
     let store = RadrootsAppleKeychainSecureStore()
     let mapping = store.keychainPolicyMapping(for: .secureLocalSecret)
