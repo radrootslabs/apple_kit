@@ -36,7 +36,7 @@ let package = Package(
         ),
         .testTarget(
             name: "RadrootsKitTests",
-            dependencies: ["RadrootsKit"]
+            dependencies: ["RadrootsKit", "RadrootsKitTesting"]
         ),
         .testTarget(
             name: "RadrootsKitTestingTests",
