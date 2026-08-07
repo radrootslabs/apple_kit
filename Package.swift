@@ -17,9 +17,18 @@ let package = Package(
             targets: ["RadrootsKitTesting"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/21-DOT-DEV/swift-secp256k1.git",
+            revision: "e70a10e036a55fffea31568f0af92d69b6d449cd"
+        )
+    ],
     targets: [
         .target(
             name: "RadrootsKit",
+            dependencies: [
+                .product(name: "P256K", package: "swift-secp256k1")
+            ],
             linkerSettings: [
                 .linkedFramework("Security"),
                 .linkedFramework("LocalAuthentication"),
