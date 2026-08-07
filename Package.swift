@@ -35,6 +35,9 @@ let package = Package(
                 .linkedFramework("UserNotifications"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("Photos"),
+                .linkedFramework("CoreGraphics"),
+                .linkedFramework("ImageIO"),
+                .linkedFramework("UniformTypeIdentifiers"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("BackgroundTasks", .when(platforms: [.iOS]))
             ]
