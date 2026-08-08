@@ -21,7 +21,7 @@ public struct RadrootsUITestLaunchConfiguration: Sendable, Equatable {
                 "-AppleLanguages",
                 "(\(language))",
                 "-AppleLocale",
-                locale
+                locale,
             ]
         )
     }

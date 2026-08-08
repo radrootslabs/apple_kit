@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func captureAsyncSupportRunsCleanupOnTimeout() async throws {
     let probe = RadrootsCaptureCleanupProbe()
@@ -62,22 +62,22 @@ import Testing
 }
 
 #if !canImport(UIKit)
-@Test func appleMediaPickerReportsUnavailableWithoutUIKit() async throws {
-    let picker = try RadrootsAppleMediaPicker(fileAccess: mediaPickerTestFileAccess())
-    let support = try await picker.currentSupport()
+    @Test func appleMediaPickerReportsUnavailableWithoutUIKit() async throws {
+        let picker = try RadrootsAppleMediaPicker(fileAccess: mediaPickerTestFileAccess())
+        let support = try await picker.currentSupport()
 
-    #expect(!support.importAvailable)
-    #expect(!support.cameraCaptureAvailable)
-    #expect(support.supportedImportKinds.isEmpty)
-    #expect(support.supportedCaptureKinds.isEmpty)
+        #expect(!support.importAvailable)
+        #expect(!support.cameraCaptureAvailable)
+        #expect(support.supportedImportKinds.isEmpty)
+        #expect(support.supportedCaptureKinds.isEmpty)
 
-    await #expect(throws: RadrootsCaptureIntakeError.unavailable("media import is unavailable")) {
-        _ = try await picker.importMedia(try RadrootsMediaImportRequest())
+        await #expect(throws: RadrootsCaptureIntakeError.unavailable("media import is unavailable")) {
+            _ = try await picker.importMedia(RadrootsMediaImportRequest())
+        }
+        await #expect(throws: RadrootsCaptureIntakeError.unavailable("camera photo capture is unavailable")) {
+            _ = try await picker.captureMedia(RadrootsMediaCaptureRequest())
+        }
     }
-    await #expect(throws: RadrootsCaptureIntakeError.unavailable("camera photo capture is unavailable")) {
-        _ = try await picker.captureMedia(try RadrootsMediaCaptureRequest())
-    }
-}
 #endif
 
 private func mediaPickerTestFileAccess() throws -> RadrootsAppleFileAccess {

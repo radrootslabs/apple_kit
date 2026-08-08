@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func documentImportRequestNormalizesContentKinds() throws {
     let request = try RadrootsDocumentImportRequest(
@@ -67,9 +67,9 @@ import Testing
     let request = try RadrootsShareRequest(
         items: [
             .text(" public post "),
-            .url(URL(string: "https://radroots.org/posts/1")!),
+            .url(#require(URL(string: "https://radroots.org/posts/1"))),
             .file(file, suggestedFilename: " diagnostics.json ", mediaType: " Application/JSON ", sizeBytes: 24),
-            .stagedBlob(stagedBlob, suggestedFilename: " staged.json ")
+            .stagedBlob(stagedBlob, suggestedFilename: " staged.json "),
         ],
         subject: " Radroots "
     )
@@ -77,7 +77,7 @@ import Testing
     #expect(request.subject == "Radroots")
     #expect(request.items.count == 4)
     #expect(request.items[0] == .text("public post"))
-    #expect(request.items[1] == .url(URL(string: "https://radroots.org/posts/1")!))
+    #expect(try request.items[1] == .url(#require(URL(string: "https://radroots.org/posts/1"))))
     #expect(request.items[2] == .file(file, suggestedFilename: "diagnostics.json", mediaType: "application/json", sizeBytes: 24))
     #expect(request.items[3] == .stagedBlob(stagedBlob, suggestedFilename: "staged.json"))
 
@@ -88,7 +88,7 @@ import Testing
         _ = try RadrootsShareRequest(items: [.text("  ")])
     }
     #expect(throws: RadrootsDocumentInterchangeError.self) {
-        _ = try RadrootsShareRequest(items: [.url(URL(string: "file:///tmp/private.txt")!)])
+        _ = try RadrootsShareRequest(items: [.url(#require(URL(string: "file:///tmp/private.txt")))])
     }
 }
 

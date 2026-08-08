@@ -20,17 +20,17 @@ public enum RadrootsDocumentInterchangeError: Error, Equatable, Sendable {
 extension RadrootsDocumentInterchangeError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .notFound(let message):
+        case let .notFound(message):
             message
-        case .userCancelled(let message):
+        case let .userCancelled(message):
             message
-        case .permissionDenied(let message):
+        case let .permissionDenied(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }
@@ -120,11 +120,11 @@ public enum RadrootsShareItem: Sendable, Equatable, Hashable {
     case stagedBlob(RadrootsStagedBlobReference, suggestedFilename: String?)
 
     public static func validatedText(_ value: String) throws -> Self {
-        .text(try RadrootsDocumentInterchangeValidation.normalizedPublicText(value, field: "share text"))
+        try .text(RadrootsDocumentInterchangeValidation.normalizedPublicText(value, field: "share text"))
     }
 
     public static func validatedURL(_ value: URL) throws -> Self {
-        .url(try RadrootsDocumentInterchangeValidation.normalizedPublicURL(value))
+        try .url(RadrootsDocumentInterchangeValidation.normalizedPublicURL(value))
     }
 
     public static func validatedFile(
@@ -134,10 +134,10 @@ public enum RadrootsShareItem: Sendable, Equatable, Hashable {
         sizeBytes: UInt64? = nil
     ) throws -> Self {
         let normalizedFile = try RadrootsDocumentInterchangeValidation.normalizedScopedFileReference(file)
-        return .file(
+        return try .file(
             normalizedFile,
-            suggestedFilename: try RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename),
-            mediaType: try RadrootsDocumentInterchangeValidation.normalizedMediaType(mediaType),
+            suggestedFilename: RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename),
+            mediaType: RadrootsDocumentInterchangeValidation.normalizedMediaType(mediaType),
             sizeBytes: sizeBytes
         )
     }
@@ -150,22 +150,22 @@ public enum RadrootsShareItem: Sendable, Equatable, Hashable {
             stagedBlob.filenameHint,
             field: "staged blob filename hint"
         )
-        return .stagedBlob(
+        return try .stagedBlob(
             stagedBlob,
-            suggestedFilename: try RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename)
+            suggestedFilename: RadrootsDocumentInterchangeValidation.normalizedOptionalFilename(suggestedFilename)
         )
     }
 
     public var normalized: Self {
         get throws {
             switch self {
-            case .text(let text):
+            case let .text(text):
                 try Self.validatedText(text)
-            case .url(let url):
+            case let .url(url):
                 try Self.validatedURL(url)
-            case .file(let file, let suggestedFilename, let mediaType, let sizeBytes):
+            case let .file(file, suggestedFilename, mediaType, sizeBytes):
                 try Self.validatedFile(file, suggestedFilename: suggestedFilename, mediaType: mediaType, sizeBytes: sizeBytes)
-            case .stagedBlob(let stagedBlob, let suggestedFilename):
+            case let .stagedBlob(stagedBlob, suggestedFilename):
                 try Self.validatedStagedBlob(stagedBlob, suggestedFilename: suggestedFilename)
             }
         }
@@ -223,7 +223,7 @@ public struct RadrootsExportDocumentRequest: Sendable, Equatable, Hashable {
         requestedSizeBytes: UInt64?
     ) throws -> UInt64? {
         switch source {
-        case .inlineData(let data):
+        case let .inlineData(data):
             let actualSize = UInt64(data.count)
             if let requestedSizeBytes, requestedSizeBytes != actualSize {
                 throw RadrootsDocumentInterchangeError.invalidRequest("inline export byte count does not match data size")
@@ -231,7 +231,7 @@ public struct RadrootsExportDocumentRequest: Sendable, Equatable, Hashable {
             return actualSize
         case .file:
             return requestedSizeBytes
-        case .stagedBlob(let stagedBlob):
+        case let .stagedBlob(stagedBlob):
             let actualSize = UInt64(stagedBlob.sizeBytes)
             if let requestedSizeBytes, requestedSizeBytes != actualSize {
                 throw RadrootsDocumentInterchangeError.invalidRequest("staged blob export byte count does not match reference size")
@@ -304,13 +304,13 @@ public enum RadrootsDocumentInterchangeValidation {
         guard !trimmed.isEmpty else {
             throw RadrootsDocumentInterchangeError.invalidRequest("document filename cannot be empty")
         }
-        guard trimmed != "." && trimmed != ".." else {
+        guard trimmed != ".", trimmed != ".." else {
             throw RadrootsDocumentInterchangeError.invalidRequest("document filename cannot be a path segment")
         }
         guard !NSString(string: trimmed).isAbsolutePath else {
             throw RadrootsDocumentInterchangeError.invalidRequest("document filename cannot be absolute")
         }
-        guard !trimmed.contains("/") && !trimmed.contains("\\") && !trimmed.contains("\0") else {
+        guard !trimmed.contains("/"), !trimmed.contains("\\"), !trimmed.contains("\0") else {
             throw RadrootsDocumentInterchangeError.invalidRequest("document filename cannot contain path separators")
         }
         guard trimmed.rangeOfCharacter(from: .controlCharacters) == nil else {
@@ -383,7 +383,7 @@ public enum RadrootsDocumentInterchangeValidation {
         guard !NSString(string: trimmed).isAbsolutePath else {
             throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot be absolute")
         }
-        guard !trimmed.contains("\\") && !trimmed.contains("\0") else {
+        guard !trimmed.contains("\\"), !trimmed.contains("\0") else {
             throw RadrootsDocumentInterchangeError.invalidRequest("share file path cannot contain unsafe separators")
         }
         guard trimmed.rangeOfCharacter(from: .controlCharacters) == nil else {
@@ -412,7 +412,7 @@ public enum RadrootsDocumentInterchangeValidation {
             "private_key",
             "private key",
             "secret_key",
-            "secret key"
+            "secret key",
         ]
         guard !unsafeFragments.contains(where: normalized.contains) else {
             throw RadrootsDocumentInterchangeError.invalidRequest("\(field) cannot contain secret material")

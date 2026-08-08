@@ -1,19 +1,19 @@
 import Foundation
 
 #if canImport(AVFoundation)
-import AVFoundation
+    import AVFoundation
 #endif
 
 #if canImport(CoreLocation)
-import CoreLocation
+    import CoreLocation
 #endif
 
 #if canImport(Photos)
-import Photos
+    import Photos
 #endif
 
 #if canImport(UserNotifications)
-import UserNotifications
+    import UserNotifications
 #endif
 
 public struct RadrootsApplePermissionStatusAdapters: Sendable {
@@ -62,125 +62,125 @@ public struct RadrootsApplePermissionStatusAdapters: Sendable {
 
     public static func currentNotificationStatus() async -> RadrootsPermissionStatus {
         #if canImport(UserNotifications)
-        return await withCheckedContinuation { continuation in
-            UNUserNotificationCenter.current().getNotificationSettings { settings in
-                continuation.resume(returning: Self.permissionStatus(for: settings.authorizationStatus))
+            return await withCheckedContinuation { continuation in
+                UNUserNotificationCenter.current().getNotificationSettings { settings in
+                    continuation.resume(returning: Self.permissionStatus(for: settings.authorizationStatus))
+                }
             }
-        }
         #else
-        return .unsupported
+            return .unsupported
         #endif
     }
 
     public static func currentCameraStatus() -> RadrootsPermissionStatus {
         #if canImport(AVFoundation)
-        return permissionStatus(for: AVCaptureDevice.authorizationStatus(for: .video))
+            return permissionStatus(for: AVCaptureDevice.authorizationStatus(for: .video))
         #else
-        return .unsupported
+            return .unsupported
         #endif
     }
 
     public static func currentPhotosStatus() -> RadrootsPermissionStatus {
         #if canImport(Photos)
-        return permissionStatus(for: PHPhotoLibrary.authorizationStatus(for: .readWrite))
+            return permissionStatus(for: PHPhotoLibrary.authorizationStatus(for: .readWrite))
         #else
-        return .unsupported
+            return .unsupported
         #endif
     }
 
     public static func currentMicrophoneStatus() -> RadrootsPermissionStatus {
         #if canImport(AVFoundation)
-        return permissionStatus(for: AVCaptureDevice.authorizationStatus(for: .audio))
+            return permissionStatus(for: AVCaptureDevice.authorizationStatus(for: .audio))
         #else
-        return .unsupported
+            return .unsupported
         #endif
     }
 
     public static func currentLocationStatus() -> RadrootsPermissionStatus {
         #if canImport(CoreLocation)
-        guard CLLocationManager.locationServicesEnabled() else {
-            return .unavailable
-        }
-        return permissionStatus(for: CLLocationManager().authorizationStatus)
+            guard CLLocationManager.locationServicesEnabled() else {
+                return .unavailable
+            }
+            return permissionStatus(for: CLLocationManager().authorizationStatus)
         #else
-        return .unsupported
+            return .unsupported
         #endif
     }
 
     #if canImport(UserNotifications)
-    public static func permissionStatus(for authorizationStatus: UNAuthorizationStatus) -> RadrootsPermissionStatus {
-        switch authorizationStatus {
-        case .notDetermined:
-            .notDetermined
-        case .denied:
-            .denied
-        case .authorized:
-            .authorized
-        case .provisional:
-            .limited
-        case .ephemeral:
-            .limited
-        @unknown default:
-            .unavailable
+        public static func permissionStatus(for authorizationStatus: UNAuthorizationStatus) -> RadrootsPermissionStatus {
+            switch authorizationStatus {
+            case .notDetermined:
+                .notDetermined
+            case .denied:
+                .denied
+            case .authorized:
+                .authorized
+            case .provisional:
+                .limited
+            case .ephemeral:
+                .limited
+            @unknown default:
+                .unavailable
+            }
         }
-    }
     #endif
 
     #if canImport(AVFoundation)
-    public static func permissionStatus(for authorizationStatus: AVAuthorizationStatus) -> RadrootsPermissionStatus {
-        switch authorizationStatus {
-        case .notDetermined:
-            .notDetermined
-        case .restricted:
-            .restricted
-        case .denied:
-            .denied
-        case .authorized:
-            .authorized
-        @unknown default:
-            .unavailable
+        public static func permissionStatus(for authorizationStatus: AVAuthorizationStatus) -> RadrootsPermissionStatus {
+            switch authorizationStatus {
+            case .notDetermined:
+                .notDetermined
+            case .restricted:
+                .restricted
+            case .denied:
+                .denied
+            case .authorized:
+                .authorized
+            @unknown default:
+                .unavailable
+            }
         }
-    }
     #endif
 
     #if canImport(Photos)
-    public static func permissionStatus(for authorizationStatus: PHAuthorizationStatus) -> RadrootsPermissionStatus {
-        switch authorizationStatus {
-        case .notDetermined:
-            .notDetermined
-        case .restricted:
-            .restricted
-        case .denied:
-            .denied
-        case .authorized:
-            .authorized
-        case .limited:
-            .limited
-        @unknown default:
-            .unavailable
+        public static func permissionStatus(for authorizationStatus: PHAuthorizationStatus) -> RadrootsPermissionStatus {
+            switch authorizationStatus {
+            case .notDetermined:
+                .notDetermined
+            case .restricted:
+                .restricted
+            case .denied:
+                .denied
+            case .authorized:
+                .authorized
+            case .limited:
+                .limited
+            @unknown default:
+                .unavailable
+            }
         }
-    }
     #endif
 
     #if canImport(CoreLocation)
-    public static func permissionStatus(for authorizationStatus: CLAuthorizationStatus) -> RadrootsPermissionStatus {
-        switch authorizationStatus {
-        case .notDetermined:
-            .notDetermined
-        case .restricted:
-            .restricted
-        case .denied:
-            .denied
-        case .authorizedAlways:
-            .authorized
-        #if os(iOS)
-        case .authorizedWhenInUse:
-            .authorized
-        #endif
-        @unknown default:
-            .unavailable
+        public static func permissionStatus(for authorizationStatus: CLAuthorizationStatus) -> RadrootsPermissionStatus {
+            switch authorizationStatus {
+            case .notDetermined:
+                .notDetermined
+            case .restricted:
+                .restricted
+            case .denied:
+                .denied
+            case .authorizedAlways:
+                .authorized
+            #if os(iOS)
+                case .authorizedWhenInUse:
+                    .authorized
+            #endif
+            @unknown default:
+                .unavailable
+            }
         }
-    }
     #endif
 }
 

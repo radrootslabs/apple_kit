@@ -1,10 +1,9 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+@testable import RadrootsKit
 import Testing
 import UniformTypeIdentifiers
-
-@testable import RadrootsKit
 
 @Test func appleMediaPreparationNormalizesAndCommitsStableFinalBytes() async throws {
     let roots = try mediaPreparationRoots()
@@ -39,15 +38,16 @@ import UniformTypeIdentifiers
     let prepared = try await preparer.prepareImage(RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
 
     let request = try await preparer.blossomUploadRequest(
-        preparedImage: prepared, remoteURL: URL(string: "https://blossom.radroots.org/upload")!, authorization: "Nostr signed-event",
-        identifier: RadrootsBackgroundTransferIdentifier("field.media.upload"))
+        preparedImage: prepared, remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")), authorization: "Nostr signed-event",
+        identifier: RadrootsBackgroundTransferIdentifier("field.media.upload")
+    )
 
     #expect(request.method == .put)
     #expect(request.operation == .upload(source: .stagedBlob(prepared.file)))
     #expect(request.headers["Authorization"] == "Nostr signed-event")
     #expect(request.headers["Content-Type"] == "image/png")
     #expect(request.metadata["sha256"] == prepared.sha256)
-    #expect(request.responsePolicy == (try .boundedJSON()))
+    #expect(try request.responsePolicy == .boundedJSON())
     #expect(request.expectedSourceSHA256 == prepared.sha256)
 
     let preparedURL = try roots.stagedBlobURL(for: prepared.file)
@@ -56,7 +56,8 @@ import UniformTypeIdentifiers
     try tampered.write(to: preparedURL, options: .atomic)
     await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest("prepared image no longer matches its commitment")) {
         _ = try await preparer.blossomUploadRequest(
-            preparedImage: prepared, remoteURL: URL(string: "https://blossom.radroots.org/upload")!, authorization: "Nostr signed-event")
+            preparedImage: prepared, remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")), authorization: "Nostr signed-event"
+        )
     }
 }
 
@@ -81,7 +82,9 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
     let context = try #require(
         CGContext(
             data: nil, width: 2, height: 3, bitsPerComponent: 8, bytesPerRow: 8, space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+    )
     context.setFillColor(CGColor(red: 0.2, green: 0.7, blue: 0.3, alpha: 1))
     context.fill(CGRect(x: 0, y: 0, width: 2, height: 3))
     let image = try #require(context.makeImage())
@@ -89,7 +92,7 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
     let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
     let properties: [CFString: Any] = [
         kCGImagePropertyOrientation: 6, kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 45.0],
-        kCGImageDestinationLossyCompressionQuality: 0.9
+        kCGImageDestinationLossyCompressionQuality: 0.9,
     ]
     CGImageDestinationAddImage(destination, image, properties as CFDictionary)
     try #require(CGImageDestinationFinalize(destination))
@@ -97,9 +100,11 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
 
 private func mediaPreparationRoots() throws -> RadrootsAppleFileRoots {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "radroots-media-preparation-\(UUID().uuidString)", isDirectory: true)
+        "radroots-media-preparation-\(UUID().uuidString)", isDirectory: true
+    )
     return try RadrootsAppleFileRoots(
         appIdentifier: "org.radroots.tests", dataRoot: root.appendingPathComponent("data", isDirectory: true),
         cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
-        temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true))
+        temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true)
+    )
 }

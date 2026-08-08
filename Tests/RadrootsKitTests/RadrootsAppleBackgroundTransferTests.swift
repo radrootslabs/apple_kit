@@ -1,8 +1,7 @@
 import Foundation
+@testable import RadrootsKit
 import RadrootsKitTesting
 import Testing
-
-@testable import RadrootsKit
 
 @Test func appleBackgroundTransferPersistsRunningSnapshotAfterEnqueue() async throws {
     let store = RadrootsInMemoryBackgroundTransferStore()
@@ -36,7 +35,8 @@ import Testing
 @Test func appleBackgroundTransferRecordsFailedSnapshotWhenAdapterRejectsEnqueue() async throws {
     let store = RadrootsInMemoryBackgroundTransferStore()
     let probe = RadrootsAppleBackgroundTransferProbe(
-        now: Date(timeIntervalSince1970: 200), enqueueOutcome: .failure(.transferFailure("adapter rejected transfer")))
+        now: Date(timeIntervalSince1970: 200), enqueueOutcome: .failure(.transferFailure("adapter rejected transfer"))
+    )
     let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: probe.adapters())
     let request = try appleTransferRequest(identifier: "field.transfer.failed")
 
@@ -83,7 +83,8 @@ import Testing
     let request = try appleUploadRequest(identifier: "field.transfer.interrupted")
     let running = try RadrootsBackgroundTransferSnapshot(
         request: request, state: .running, progress: RadrootsBackgroundTransferProgress(bytesTransferred: 5, totalBytesExpected: 10),
-        updatedAt: Date(timeIntervalSince1970: 1))
+        updatedAt: Date(timeIntervalSince1970: 1)
+    )
     let store = RadrootsInMemoryBackgroundTransferStore(snapshots: [running])
     let probe = RadrootsAppleBackgroundTransferProbe(now: Date(timeIntervalSince1970: 401))
     let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: probe.adapters())
@@ -96,7 +97,7 @@ import Testing
     #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 401))
 }
 
-@Test func appleBackgroundTransferForwardsBackgroundCompletionHandlers() async throws {
+@Test func appleBackgroundTransferForwardsBackgroundCompletionHandlers() async {
     let probe = RadrootsAppleBackgroundTransferProbe()
     let transfer = RadrootsAppleBackgroundTransfer(store: RadrootsInMemoryBackgroundTransferStore(), adapters: probe.adapters())
     let completion = RadrootsCompletionProbe()
@@ -115,7 +116,8 @@ import Testing
     let resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store, fileResolver: resolver,
-        now: { Date(timeIntervalSince1970: 500) })
+        now: { Date(timeIntervalSince1970: 500) }
+    )
     let request = try appleTransferRequest(identifier: "field.transfer.completed")
     let running = try RadrootsBackgroundTransferSnapshot(request: request, state: .running, updatedAt: Date(timeIntervalSince1970: 1))
     try await store.saveSnapshot(running)
@@ -127,7 +129,8 @@ import Testing
 
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: .file(stagedFile), httpResult: successfulHTTPResult(),
-        bytesTransferred: 0, totalBytesExpected: nil)
+        bytesTransferred: 0, totalBytesExpected: nil
+    )
 
     let snapshot = try await store.loadSnapshots().first
     let destination = try resolver.resolve(.file(RadrootsFileReference(scope: .cache, relativePath: "field.transfer.completed.json")))
@@ -145,14 +148,17 @@ import Testing
     let resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store, fileResolver: resolver,
-        now: { Date(timeIntervalSince1970: 600) })
+        now: { Date(timeIntervalSince1970: 600) }
+    )
     let request = try appleTransferRequest(identifier: "field.transfer.download.failed")
     try await store.saveSnapshot(
-        try RadrootsBackgroundTransferSnapshot(request: request, state: .running, updatedAt: Date(timeIntervalSince1970: 1)))
+        RadrootsBackgroundTransferSnapshot(request: request, state: .running, updatedAt: Date(timeIntervalSince1970: 1))
+    )
 
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: .failure, httpResult: successfulHTTPResult(),
-        bytesTransferred: 0, totalBytesExpected: nil)
+        bytesTransferred: 0, totalBytesExpected: nil
+    )
 
     let snapshot = try await store.loadSnapshots().first
     #expect(snapshot?.state == .failed)
@@ -166,15 +172,18 @@ import Testing
     let resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store, fileResolver: resolver,
-        now: { Date(timeIntervalSince1970: 700) })
+        now: { Date(timeIntervalSince1970: 700) }
+    )
     let request = try appleUploadRequest(identifier: "field.transfer.upload.completed")
     try await store.saveSnapshot(
-        try RadrootsBackgroundTransferSnapshot(request: request, state: .running, updatedAt: Date(timeIntervalSince1970: 1)))
+        RadrootsBackgroundTransferSnapshot(request: request, state: .running, updatedAt: Date(timeIntervalSince1970: 1))
+    )
 
     await coordinator.updateProgress(identifier: request.identifier, bytesTransferred: 4, totalBytesExpected: 10)
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: nil, httpResult: successfulHTTPResult(),
-        bytesTransferred: 10, totalBytesExpected: 10)
+        bytesTransferred: 10, totalBytesExpected: 10
+    )
 
     let snapshot = try await store.loadSnapshots().first
     #expect(snapshot?.state == .completed)
@@ -189,16 +198,19 @@ import Testing
     let store = RadrootsInMemoryBackgroundTransferStore()
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store,
-        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots), now: { Date(timeIntervalSince1970: 710) })
+        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots), now: { Date(timeIntervalSince1970: 710) }
+    )
     let body = Data(#"{"url":"https://cdn.radroots.org/a.png"}"#.utf8)
     let request = try appleUploadRequest(
-        identifier: "field.transfer.upload.descriptor", responsePolicy: .boundedJSON(maximumBodyBytes: 1_024))
-    try await store.saveSnapshot(try RadrootsBackgroundTransferSnapshot(request: request, state: .running))
+        identifier: "field.transfer.upload.descriptor", responsePolicy: .boundedJSON(maximumBodyBytes: 1024)
+    )
+    try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: request, state: .running))
 
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: nil,
         httpResult: RadrootsBackgroundHTTPResult(statusCode: 200, mediaType: "application/json", body: body, bodyExceeded: false),
-        bytesTransferred: 10, totalBytesExpected: 10)
+        bytesTransferred: 10, totalBytesExpected: 10
+    )
 
     let snapshot = try #require(try await store.loadSnapshots().first)
     #expect(snapshot.state == .completed)
@@ -209,7 +221,8 @@ import Testing
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: nil,
         httpResult: RadrootsBackgroundHTTPResult(statusCode: 500, mediaType: nil, body: nil, bodyExceeded: false), bytesTransferred: 10,
-        totalBytesExpected: 10)
+        totalBytesExpected: 10
+    )
     #expect(try await store.loadSnapshots().first?.state == .completed)
 }
 
@@ -218,22 +231,26 @@ import Testing
     let store = RadrootsInMemoryBackgroundTransferStore()
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store,
-        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots), now: { Date(timeIntervalSince1970: 720) })
+        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots), now: { Date(timeIntervalSince1970: 720) }
+    )
     let statusRequest = try appleUploadRequest(identifier: "field.transfer.upload.status")
-    try await store.saveSnapshot(try RadrootsBackgroundTransferSnapshot(request: statusRequest, state: .running))
+    try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: statusRequest, state: .running))
     await coordinator.complete(
         identifier: statusRequest.identifier, platformError: nil, stagedDownloadResult: nil,
         httpResult: RadrootsBackgroundHTTPResult(statusCode: 503, mediaType: nil, body: nil, bodyExceeded: false), bytesTransferred: 10,
-        totalBytesExpected: 10)
+        totalBytesExpected: 10
+    )
     #expect(try await store.loadSnapshots().first?.errorMessage == "background_transfer_http_status_503")
 
     let bodyRequest = try appleUploadRequest(
-        identifier: "field.transfer.upload.oversized", responsePolicy: .boundedJSON(maximumBodyBytes: 32))
-    try await store.saveSnapshot(try RadrootsBackgroundTransferSnapshot(request: bodyRequest, state: .running))
+        identifier: "field.transfer.upload.oversized", responsePolicy: .boundedJSON(maximumBodyBytes: 32)
+    )
+    try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: bodyRequest, state: .running))
     await coordinator.complete(
         identifier: bodyRequest.identifier, platformError: CancellationError(), stagedDownloadResult: nil,
         httpResult: RadrootsBackgroundHTTPResult(statusCode: 200, mediaType: "application/json", body: nil, bodyExceeded: true),
-        bytesTransferred: 10, totalBytesExpected: 10)
+        bytesTransferred: 10, totalBytesExpected: 10
+    )
     let oversized = try #require(try await store.loadSnapshots().first { $0.identifier == bodyRequest.identifier })
     #expect(oversized.state == .failed)
     #expect(oversized.errorMessage == "background_transfer_response_too_large")
@@ -245,13 +262,15 @@ import Testing
     let store = RadrootsInMemoryBackgroundTransferStore()
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store,
-        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots))
+        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots)
+    )
     let request = try appleUploadRequest(identifier: "field.transfer.upload.cancelled")
-    try await store.saveSnapshot(try RadrootsBackgroundTransferSnapshot(request: request, state: .cancelled))
+    try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: request, state: .cancelled))
 
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: nil, httpResult: successfulHTTPResult(),
-        bytesTransferred: 10, totalBytesExpected: 10)
+        bytesTransferred: 10, totalBytesExpected: 10
+    )
 
     #expect(try await store.loadSnapshots().first?.state == .cancelled)
 }
@@ -261,15 +280,17 @@ import Testing
     let protectedData = RadrootsProtectedDataProbe(state: .available)
     let store = RadrootsAppleBackgroundTransferStore(roots: roots, protectedData: RadrootsProtectedDataProvider { protectedData.state })
     let request = try appleUploadRequest(identifier: "field.transfer.upload.locked")
-    try await store.saveSnapshot(try RadrootsBackgroundTransferSnapshot(request: request, state: .running))
+    try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: request, state: .running))
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store,
-        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots))
+        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots)
+    )
 
     protectedData.state = .locked
     await coordinator.complete(
         identifier: request.identifier, platformError: nil, stagedDownloadResult: nil, httpResult: successfulHTTPResult(),
-        bytesTransferred: 10, totalBytesExpected: 10)
+        bytesTransferred: 10, totalBytesExpected: 10
+    )
     protectedData.state = .available
 
     let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: RadrootsAppleBackgroundTransferProbe().adapters())
@@ -283,7 +304,8 @@ import Testing
     let store = RadrootsInMemoryBackgroundTransferStore()
     let resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
-        sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store, fileResolver: resolver)
+        sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store, fileResolver: resolver
+    )
     let completion = RadrootsCompletionProbe()
     let secondCompletion = RadrootsCompletionProbe()
     let unrelated = RadrootsCompletionProbe()
@@ -307,7 +329,8 @@ import Testing
     let roots = try appleTransferRoots()
     let coordinator = RadrootsAppleBackgroundTransferCoordinator(
         sessionIdentifier: "org.radroots.field-ios.background.transfer", store: RadrootsInMemoryBackgroundTransferStore(),
-        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots))
+        fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots)
+    )
     let completion = RadrootsCompletionProbe()
 
     await coordinator.finishBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
@@ -328,12 +351,12 @@ private actor RadrootsAppleBackgroundTransferProbe {
         now: Date = Date(timeIntervalSince1970: 0), enqueueOutcome: Result<Void, RadrootsBackgroundTransferError> = .success(()),
         activeIdentifiers: Set<RadrootsBackgroundTransferIdentifier> = []
     ) {
-        self.nowValue = now
+        nowValue = now
         self.enqueueOutcome = enqueueOutcome
-        self.activeIdentifiersValue = activeIdentifiers
-        self.enqueuedRequestsValue = []
-        self.cancelledIdentifiersValue = []
-        self.handledBackgroundEventIdentifiersValue = []
+        activeIdentifiersValue = activeIdentifiers
+        enqueuedRequestsValue = []
+        cancelledIdentifiersValue = []
+        handledBackgroundEventIdentifiersValue = []
     }
 
     nonisolated func adapters() -> RadrootsAppleBackgroundTransferAdapters {
@@ -342,14 +365,15 @@ private actor RadrootsAppleBackgroundTransferProbe {
             cancel: { identifier in await self.cancel(identifier) }, activeTransferIdentifiers: { await self.activeIdentifiers() },
             handleBackgroundEvents: { identifier, completionHandler in
                 await self.handleBackgroundEvents(identifier: identifier, completionHandler: completionHandler)
-            })
+            }
+        )
     }
 
     private func enqueue(_ request: RadrootsBackgroundTransferRequest) throws {
         enqueuedRequestsValue.append(request)
         switch enqueueOutcome {
         case .success: activeIdentifiersValue.insert(request.identifier)
-        case .failure(let error): throw error
+        case let .failure(error): throw error
         }
     }
 
@@ -358,18 +382,26 @@ private actor RadrootsAppleBackgroundTransferProbe {
         activeIdentifiersValue.remove(identifier)
     }
 
-    private func activeIdentifiers() -> Set<RadrootsBackgroundTransferIdentifier> { activeIdentifiersValue }
+    private func activeIdentifiers() -> Set<RadrootsBackgroundTransferIdentifier> {
+        activeIdentifiersValue
+    }
 
     private func handleBackgroundEvents(identifier: String, completionHandler: @escaping @Sendable () -> Void) {
         handledBackgroundEventIdentifiersValue.append(identifier)
         completionHandler()
     }
 
-    var enqueuedRequests: [RadrootsBackgroundTransferRequest] { enqueuedRequestsValue }
+    var enqueuedRequests: [RadrootsBackgroundTransferRequest] {
+        enqueuedRequestsValue
+    }
 
-    var cancelledIdentifiers: [RadrootsBackgroundTransferIdentifier] { cancelledIdentifiersValue }
+    var cancelledIdentifiers: [RadrootsBackgroundTransferIdentifier] {
+        cancelledIdentifiersValue
+    }
 
-    var handledBackgroundEventIdentifiers: [String] { handledBackgroundEventIdentifiersValue }
+    var handledBackgroundEventIdentifiers: [String] {
+        handledBackgroundEventIdentifiersValue
+    }
 }
 
 private final class RadrootsCompletionProbe: @unchecked Sendable {
@@ -382,7 +414,9 @@ private final class RadrootsCompletionProbe: @unchecked Sendable {
         lock.unlock()
     }
 
-    var completed: Bool { completionCount > 0 }
+    var completed: Bool {
+        completionCount > 0
+    }
 
     var completionCount: Int {
         lock.lock()
@@ -395,7 +429,9 @@ private final class RadrootsProtectedDataProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var stateValue: RadrootsProtectedDataState
 
-    init(state: RadrootsProtectedDataState) { self.stateValue = state }
+    init(state: RadrootsProtectedDataState) {
+        stateValue = state
+    }
 
     var state: RadrootsProtectedDataState {
         get {
@@ -414,7 +450,8 @@ private final class RadrootsProtectedDataProbe: @unchecked Sendable {
 private func appleTransferRequest(identifier: String) throws -> RadrootsBackgroundTransferRequest {
     try RadrootsBackgroundTransferRequest(
         identifier: RadrootsBackgroundTransferIdentifier(identifier), remoteURL: URL(string: "https://radroots.org/\(identifier).json")!,
-        method: .get, operation: .download(destination: .file(RadrootsFileReference(scope: .cache, relativePath: "\(identifier).json"))))
+        method: .get, operation: .download(destination: .file(RadrootsFileReference(scope: .cache, relativePath: "\(identifier).json")))
+    )
 }
 
 private func appleUploadRequest(identifier: String, responsePolicy: RadrootsBackgroundTransferResponsePolicy = .discard) throws
@@ -423,7 +460,8 @@ private func appleUploadRequest(identifier: String, responsePolicy: RadrootsBack
     try RadrootsBackgroundTransferRequest(
         identifier: RadrootsBackgroundTransferIdentifier(identifier), remoteURL: URL(string: "https://radroots.org/\(identifier).json")!,
         method: .put, operation: .upload(source: .file(RadrootsFileReference(scope: .cache, relativePath: "\(identifier).json"))),
-        responsePolicy: responsePolicy)
+        responsePolicy: responsePolicy
+    )
 }
 
 private func successfulHTTPResult() -> RadrootsBackgroundHTTPResult {
@@ -432,9 +470,11 @@ private func successfulHTTPResult() -> RadrootsBackgroundHTTPResult {
 
 private func appleTransferRoots() throws -> RadrootsAppleFileRoots {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "radroots-apple-background-transfer-\(UUID().uuidString)", isDirectory: true)
+        "radroots-apple-background-transfer-\(UUID().uuidString)", isDirectory: true
+    )
     return try RadrootsAppleFileRoots(
         appIdentifier: "org.radroots.tests", dataRoot: root.appendingPathComponent("data", isDirectory: true),
         cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
-        temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true))
+        temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true)
+    )
 }

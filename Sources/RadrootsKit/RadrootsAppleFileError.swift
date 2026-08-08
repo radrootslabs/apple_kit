@@ -11,15 +11,15 @@ public enum RadrootsAppleFileError: Error, Equatable, Sendable {
 extension RadrootsAppleFileError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .notFound(let message):
+        case let .notFound(message):
             message
-        case .permissionDenied(let message):
+        case let .permissionDenied(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }

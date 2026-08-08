@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func appleUserPresenceReportsStatusThroughAdapter() async throws {
     let expectedStatus = RadrootsUserPresenceStatus(
@@ -74,38 +74,56 @@ import Testing
 }
 
 #if canImport(LocalAuthentication)
-import LocalAuthentication
+    import LocalAuthentication
 
-@Test func appleUserPresenceMapsLocalAuthenticationPolicies() {
-    #expect(
-        RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthentication) ==
-            LAPolicy.deviceOwnerAuthentication
-    )
-    #expect(
-        RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthenticationWithBiometrics) ==
-            LAPolicy.deviceOwnerAuthenticationWithBiometrics
-    )
-}
+    @Test func appleUserPresenceMapsLocalAuthenticationPolicies() {
+        #expect(
+            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthentication) ==
+                LAPolicy.deviceOwnerAuthentication
+        )
+        #expect(
+            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthenticationWithBiometrics) ==
+                LAPolicy.deviceOwnerAuthenticationWithBiometrics
+        )
+    }
 
-@Test func appleUserPresenceMapsLocalAuthenticationErrors() {
-    assertUserPresenceError(
-        RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.userCancel)),
-        matches: { if case .userCancelled = $0 { true } else { false } }
-    )
-    assertUserPresenceError(
-        RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.biometryNotAvailable)),
-        matches: { if case .unavailable = $0 { true } else { false } }
-    )
-    assertUserPresenceError(
-        RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.authenticationFailed)),
-        matches: { if case .permissionDenied = $0 { true } else { false } }
-    )
-}
+    @Test func appleUserPresenceMapsLocalAuthenticationErrors() {
+        assertUserPresenceError(
+            RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.userCancel)),
+            matches: {
+                if case .userCancelled = $0 {
+                    true
+                } else {
+                    false
+                }
+            }
+        )
+        assertUserPresenceError(
+            RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.biometryNotAvailable)),
+            matches: {
+                if case .unavailable = $0 {
+                    true
+                } else {
+                    false
+                }
+            }
+        )
+        assertUserPresenceError(
+            RadrootsAppleUserPresenceAdapters.adapt(error: LAError(.authenticationFailed)),
+            matches: {
+                if case .permissionDenied = $0 {
+                    true
+                } else {
+                    false
+                }
+            }
+        )
+    }
 
-private func assertUserPresenceError(
-    _ error: RadrootsUserPresenceError,
-    matches: (RadrootsUserPresenceError) -> Bool
-) {
-    #expect(matches(error))
-}
+    private func assertUserPresenceError(
+        _ error: RadrootsUserPresenceError,
+        matches: (RadrootsUserPresenceError) -> Bool
+    ) {
+        #expect(matches(error))
+    }
 #endif

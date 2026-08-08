@@ -43,7 +43,7 @@ public final class RadrootsAppleLoggerTelemetry: RadrootsTelemetry, Sendable {
         subsystem: String,
         adapters: RadrootsAppleLoggerTelemetryAdapters = .live,
         redactionPolicy: RadrootsTelemetryRedactionPolicy = .default,
-        maximumRenderedMessageLength: Int = 1_000
+        maximumRenderedMessageLength: Int = 1000
     ) {
         self.subsystem = Self.normalizedSubsystem(subsystem)
         self.adapters = adapters
@@ -85,7 +85,7 @@ public final class RadrootsAppleLoggerTelemetry: RadrootsTelemetry, Sendable {
 
     public static func renderedMessage(
         for event: RadrootsTelemetryEvent,
-        maximumLength: Int = 1_000
+        maximumLength: Int = 1000
     ) -> String {
         let payload = RadrootsAppleTelemetryPayload(
             category: event.category,
@@ -95,7 +95,7 @@ public final class RadrootsAppleLoggerTelemetry: RadrootsTelemetry, Sendable {
             }),
             level: event.level.rawValue,
             message: event.message,
-            occurredAtUnixMilliseconds: Int64(event.occurredAt.timeIntervalSince1970 * 1_000)
+            occurredAtUnixMilliseconds: Int64(event.occurredAt.timeIntervalSince1970 * 1000)
         )
         let rendered: String
         do {

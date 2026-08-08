@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(LocalAuthentication)
-@preconcurrency import LocalAuthentication
+    @preconcurrency import LocalAuthentication
 #endif
 
 public struct RadrootsAppleUserPresenceAdapters: Sendable {
@@ -18,28 +18,28 @@ public struct RadrootsAppleUserPresenceAdapters: Sendable {
 
     public static func live(callbackTimeout: TimeInterval = 30) -> Self {
         #if canImport(LocalAuthentication)
-        Self(
-            currentStatus: {
-                Self.status(for: LAContext())
-            },
-            verify: { request in
-                let context = LAContext()
-                return try await Self.verify(
-                    request,
-                    context: context,
-                    callbackTimeout: callbackTimeout
-                )
-            }
-        )
+            Self(
+                currentStatus: {
+                    Self.status(for: LAContext())
+                },
+                verify: { request in
+                    let context = LAContext()
+                    return try await Self.verify(
+                        request,
+                        context: context,
+                        callbackTimeout: callbackTimeout
+                    )
+                }
+            )
         #else
-        Self(
-            currentStatus: {
-                throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
-            },
-            verify: { _ in
-                throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
-            }
-        )
+            Self(
+                currentStatus: {
+                    throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
+                },
+                verify: { _ in
+                    throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
+                }
+            )
         #endif
     }
 }
@@ -61,106 +61,105 @@ public final class RadrootsAppleUserPresence: RadrootsUserPresence, Sendable {
 }
 
 #if canImport(LocalAuthentication)
-extension RadrootsAppleUserPresenceAdapters {
-    static func platformPolicy(_ policy: RadrootsUserPresencePolicy) -> LAPolicy {
-        switch policy {
-        case .deviceOwnerAuthentication:
-            .deviceOwnerAuthentication
-        case .deviceOwnerAuthenticationWithBiometrics:
-            .deviceOwnerAuthenticationWithBiometrics
-        }
-    }
-
-    static func status(for context: LAContext) -> RadrootsUserPresenceStatus {
-        var biometricsError: NSError?
-        let canEvaluateBiometrics = context.canEvaluatePolicy(
-            .deviceOwnerAuthenticationWithBiometrics,
-            error: &biometricsError
-        )
-
-        var deviceCredentialError: NSError?
-        let canEvaluateDeviceCredential = context.canEvaluatePolicy(
-            .deviceOwnerAuthentication,
-            error: &deviceCredentialError
-        )
-
-        let support: RadrootsUserPresenceSupport
-        if canEvaluateBiometrics {
-            support = .biometricsOrDeviceCredential
-        } else if canEvaluateDeviceCredential {
-            support = .deviceCredential
-        } else {
-            support = .none
+    extension RadrootsAppleUserPresenceAdapters {
+        static func platformPolicy(_ policy: RadrootsUserPresencePolicy) -> LAPolicy {
+            switch policy {
+            case .deviceOwnerAuthentication:
+                .deviceOwnerAuthentication
+            case .deviceOwnerAuthenticationWithBiometrics:
+                .deviceOwnerAuthenticationWithBiometrics
+            }
         }
 
-        return RadrootsUserPresenceStatus(
-            support: support,
-            biometryKind: biometryKind(context.biometryType),
-            canEvaluateDeviceCredential: canEvaluateDeviceCredential,
-            canEvaluateBiometrics: canEvaluateBiometrics
-        )
-    }
+        static func status(for context: LAContext) -> RadrootsUserPresenceStatus {
+            var biometricsError: NSError?
+            let canEvaluateBiometrics = context.canEvaluatePolicy(
+                .deviceOwnerAuthenticationWithBiometrics,
+                error: &biometricsError
+            )
 
-    static func biometryKind(_ biometryType: LABiometryType) -> RadrootsBiometryKind {
-        switch biometryType {
-        case .none:
-            .none
-        case .touchID:
-            .touchID
-        case .faceID:
-            .faceID
-        case .opticID:
-            .opticID
-        @unknown default:
-            .unknown
+            var deviceCredentialError: NSError?
+            let canEvaluateDeviceCredential = context.canEvaluatePolicy(
+                .deviceOwnerAuthentication,
+                error: &deviceCredentialError
+            )
+
+            let support: RadrootsUserPresenceSupport = if canEvaluateBiometrics {
+                .biometricsOrDeviceCredential
+            } else if canEvaluateDeviceCredential {
+                .deviceCredential
+            } else {
+                .none
+            }
+
+            return RadrootsUserPresenceStatus(
+                support: support,
+                biometryKind: biometryKind(context.biometryType),
+                canEvaluateDeviceCredential: canEvaluateDeviceCredential,
+                canEvaluateBiometrics: canEvaluateBiometrics
+            )
         }
-    }
 
-    static func verify(
-        _ request: RadrootsUserPresenceRequest,
-        context: LAContext,
-        callbackTimeout: TimeInterval
-    ) async throws -> RadrootsUserPresenceResult {
-        try await RadrootsAppleUserPresenceAsyncSupport.awaitCallback(
-            timeout: callbackTimeout,
-            timeoutMessage: "timed out while completing user presence verification"
-        ) { completion in
-            context.evaluatePolicy(
-                platformPolicy(request.policy),
-                localizedReason: request.reason
-            ) { success, error in
-                if let error {
-                    completion(.failure(adapt(error: error)))
-                } else {
-                    completion(.success(RadrootsUserPresenceResult(policy: request.policy, verified: success)))
+        static func biometryKind(_ biometryType: LABiometryType) -> RadrootsBiometryKind {
+            switch biometryType {
+            case .none:
+                .none
+            case .touchID:
+                .touchID
+            case .faceID:
+                .faceID
+            case .opticID:
+                .opticID
+            @unknown default:
+                .unknown
+            }
+        }
+
+        static func verify(
+            _ request: RadrootsUserPresenceRequest,
+            context: LAContext,
+            callbackTimeout: TimeInterval
+        ) async throws -> RadrootsUserPresenceResult {
+            try await RadrootsAppleUserPresenceAsyncSupport.awaitCallback(
+                timeout: callbackTimeout,
+                timeoutMessage: "timed out while completing user presence verification"
+            ) { completion in
+                context.evaluatePolicy(
+                    platformPolicy(request.policy),
+                    localizedReason: request.reason
+                ) { success, error in
+                    if let error {
+                        completion(.failure(adapt(error: error)))
+                    } else {
+                        completion(.success(RadrootsUserPresenceResult(policy: request.policy, verified: success)))
+                    }
                 }
             }
         }
-    }
 
-    static func adapt(error: Error) -> RadrootsUserPresenceError {
-        if let error = error as? RadrootsUserPresenceError {
-            return error
-        }
-
-        if let error = error as? LAError {
-            switch error.code {
-            case .userCancel, .userFallback:
-                return .userCancelled(error.localizedDescription)
-            case .appCancel, .systemCancel, .notInteractive:
-                return .transientFailure(error.localizedDescription)
-            case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet:
-                return .unavailable(error.localizedDescription)
-            case .authenticationFailed:
-                return .permissionDenied(error.localizedDescription)
-            default:
-                return .permanentFailure(error.localizedDescription)
+        static func adapt(error: Error) -> RadrootsUserPresenceError {
+            if let error = error as? RadrootsUserPresenceError {
+                return error
             }
-        }
 
-        return .permanentFailure(error.localizedDescription)
+            if let error = error as? LAError {
+                switch error.code {
+                case .userCancel, .userFallback:
+                    return .userCancelled(error.localizedDescription)
+                case .appCancel, .systemCancel, .notInteractive:
+                    return .transientFailure(error.localizedDescription)
+                case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet:
+                    return .unavailable(error.localizedDescription)
+                case .authenticationFailed:
+                    return .permissionDenied(error.localizedDescription)
+                default:
+                    return .permanentFailure(error.localizedDescription)
+                }
+            }
+
+            return .permanentFailure(error.localizedDescription)
+        }
     }
-}
 #endif
 
 enum RadrootsAppleUserPresenceAsyncSupport {
@@ -226,9 +225,9 @@ private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>
         lock.unlock()
 
         switch result {
-        case .success(let value):
+        case let .success(value):
             pending?.resume(returning: value)
-        case .failure(let error):
+        case let .failure(error):
             pending?.resume(throwing: error)
         }
     }

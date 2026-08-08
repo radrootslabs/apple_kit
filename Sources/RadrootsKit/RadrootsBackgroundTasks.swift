@@ -14,11 +14,11 @@ public enum RadrootsBackgroundTaskError: Error, Equatable, Sendable {
 extension RadrootsBackgroundTaskError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .unavailable(let message):
+        case let .unavailable(message):
             message
-        case .schedulerFailure(let message):
+        case let .schedulerFailure(message):
             message
         }
     }
@@ -28,7 +28,7 @@ public struct RadrootsBackgroundTaskIdentifier: Sendable, Equatable, Hashable, C
     public let rawValue: String
 
     public init(_ value: String) throws {
-        self.rawValue = try RadrootsBackgroundTaskValidation.normalizedIdentifier(value)
+        rawValue = try RadrootsBackgroundTaskValidation.normalizedIdentifier(value)
     }
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
@@ -140,11 +140,11 @@ public struct RadrootsUnavailableBackgroundTaskScheduler: RadrootsBackgroundTask
         self.reason = trimmedReason.isEmpty ? "background task scheduling is unavailable on this platform" : trimmedReason
     }
 
-    public func submit(_ request: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot {
+    public func submit(_: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot {
         throw RadrootsBackgroundTaskError.unavailable(reason)
     }
 
-    public func cancel(_ identifier: RadrootsBackgroundTaskIdentifier) async throws {
+    public func cancel(_: RadrootsBackgroundTaskIdentifier) async throws {
         throw RadrootsBackgroundTaskError.unavailable(reason)
     }
 

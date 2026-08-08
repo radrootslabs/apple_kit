@@ -1,9 +1,9 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 #if canImport(CoreLocation)
-import CoreLocation
+    import CoreLocation
 #endif
 
 @Test func appleLocationServicesReportsCurrentAvailability() async {
@@ -97,7 +97,7 @@ import CoreLocation
         )
     )
 
-    let result = try await service.currentLocation(try RadrootsCurrentLocationRequest(
+    let result = try await service.currentLocation(RadrootsCurrentLocationRequest(
         timeoutSeconds: 3,
         maximumCachedReadingAgeSeconds: 5
     ))
@@ -119,7 +119,7 @@ import CoreLocation
     )
 
     await #expect(throws: RadrootsLocationServicesError.permissionDenied("location permission has not been requested")) {
-        _ = try await service.currentLocation(try RadrootsCurrentLocationRequest(timeoutSeconds: 1))
+        _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 1))
     }
 }
 
@@ -140,7 +140,7 @@ import CoreLocation
     )
 
     await #expect(throws: RadrootsLocationServicesError.transientFailure("location reading is older than the requested maximum age")) {
-        _ = try await service.currentLocation(try RadrootsCurrentLocationRequest(
+        _ = try await service.currentLocation(RadrootsCurrentLocationRequest(
             timeoutSeconds: 1,
             maximumCachedReadingAgeSeconds: 5
         ))
@@ -160,33 +160,33 @@ import CoreLocation
     )
 
     await #expect(throws: RadrootsLocationServicesError.timeout("timed out")) {
-        _ = try await service.currentLocation(try RadrootsCurrentLocationRequest(timeoutSeconds: 1))
+        _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 1))
     }
 }
 
 #if canImport(CoreLocation)
-@Test func appleLocationServicesMapsCoreLocationAuthorization() {
-    #expect(RadrootsAppleLocationServicesAdapters.authorization(
-        for: CLAuthorizationStatus.notDetermined,
-        locationServicesEnabled: true
-    ) == .notDetermined)
-    #expect(RadrootsAppleLocationServicesAdapters.authorization(
-        for: CLAuthorizationStatus.denied,
-        locationServicesEnabled: true
-    ) == .denied)
-    #expect(RadrootsAppleLocationServicesAdapters.authorization(
-        for: CLAuthorizationStatus.authorizedAlways,
-        locationServicesEnabled: true
-    ) == .authorizedAlways)
-    #expect(RadrootsAppleLocationServicesAdapters.authorization(
-        for: CLAuthorizationStatus.authorizedAlways,
-        locationServicesEnabled: false
-    ) == .unavailable)
-    #if os(iOS)
-    #expect(RadrootsAppleLocationServicesAdapters.authorization(
-        for: CLAuthorizationStatus.authorizedWhenInUse,
-        locationServicesEnabled: true
-    ) == .authorizedWhenInUse)
-    #endif
-}
+    @Test func appleLocationServicesMapsCoreLocationAuthorization() {
+        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+            for: CLAuthorizationStatus.notDetermined,
+            locationServicesEnabled: true
+        ) == .notDetermined)
+        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+            for: CLAuthorizationStatus.denied,
+            locationServicesEnabled: true
+        ) == .denied)
+        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+            for: CLAuthorizationStatus.authorizedAlways,
+            locationServicesEnabled: true
+        ) == .authorizedAlways)
+        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+            for: CLAuthorizationStatus.authorizedAlways,
+            locationServicesEnabled: false
+        ) == .unavailable)
+        #if os(iOS)
+            #expect(RadrootsAppleLocationServicesAdapters.authorization(
+                for: CLAuthorizationStatus.authorizedWhenInUse,
+                locationServicesEnabled: true
+            ) == .authorizedWhenInUse)
+        #endif
+    }
 #endif

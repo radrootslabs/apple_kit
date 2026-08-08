@@ -95,7 +95,7 @@ public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codabl
         guard !trimmed.isEmpty else {
             throw RadrootsAppleFileError.invalidRequest("staged blob filename hint cannot be empty")
         }
-        guard !trimmed.contains("/") && !trimmed.contains("\\") && !trimmed.contains("\0") else {
+        guard !trimmed.contains("/"), !trimmed.contains("\\"), !trimmed.contains("\0") else {
             throw RadrootsAppleFileError.invalidRequest("staged blob filename hint cannot contain path separators")
         }
         return trimmed
@@ -155,10 +155,10 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         let url = try roots.resolvedURL(for: file)
         try createParentDirectory(for: url)
         switch payload {
-        case .inline(let inlineData):
+        case let .inline(inlineData):
             try inlineData.write(to: url, options: [.atomic])
-        case .stagedBlob(let stagedBlob):
-            try copyReplacingItem(from: try stagedBlobURL(for: stagedBlob), to: url)
+        case let .stagedBlob(stagedBlob):
+            try copyReplacingItem(from: stagedBlobURL(for: stagedBlob), to: url)
         }
     }
 
@@ -169,14 +169,14 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         }
         switch mode {
         case .inline:
-            return .inline(try Data(contentsOf: url))
-        case .preferInline(let maxBytes):
+            return try .inline(Data(contentsOf: url))
+        case let .preferInline(maxBytes):
             guard maxBytes >= 0 else {
                 throw RadrootsAppleFileError.invalidRequest("inline byte limit cannot be negative")
             }
             let size = try fileSize(at: url)
             if size <= maxBytes {
-                return .inline(try Data(contentsOf: url))
+                return try .inline(Data(contentsOf: url))
             }
             let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
             return .stagedBlob(staged)
@@ -313,18 +313,17 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         let fileURL = directoryURL.appendingPathComponent(request.suggestedFilename).standardizedFileURL
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         switch request.source {
-        case .inlineData(let data):
+        case let .inlineData(data):
             try data.write(to: fileURL, options: [.atomic])
-        case .file(let file):
-            try copyReplacingItem(from: try roots.resolvedURL(for: file), to: fileURL)
-        case .stagedBlob(let stagedBlob):
-            try copyReplacingItem(from: try stagedBlobURL(for: stagedBlob), to: fileURL)
+        case let .file(file):
+            try copyReplacingItem(from: roots.resolvedURL(for: file), to: fileURL)
+        case let .stagedBlob(stagedBlob):
+            try copyReplacingItem(from: stagedBlobURL(for: stagedBlob), to: fileURL)
         }
-        let sizeBytes: UInt64
-        if let requestSizeBytes = request.sizeBytes {
-            sizeBytes = requestSizeBytes
+        let sizeBytes: UInt64 = if let requestSizeBytes = request.sizeBytes {
+            requestSizeBytes
         } else {
-            sizeBytes = try fileSizeUInt64(at: fileURL)
+            try fileSizeUInt64(at: fileURL)
         }
         return try RadrootsPreparedExportDocument(
             preparedID: preparedID,
@@ -497,7 +496,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     private func fileSizeUInt64(at url: URL) throws -> UInt64 {
-        UInt64(try fileSizeInt(at: url))
+        try UInt64(fileSizeInt(at: url))
     }
 
     private func relativePath(for url: URL, under rootURL: URL) throws -> String {

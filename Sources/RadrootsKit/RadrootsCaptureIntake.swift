@@ -12,17 +12,17 @@ public enum RadrootsCaptureIntakeError: Error, Equatable, Sendable {
 extension RadrootsCaptureIntakeError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .unavailable(let message):
+        case let .unavailable(message):
             message
-        case .permissionDenied(let message):
+        case let .permissionDenied(message):
             message
-        case .userCancelled(let message):
+        case let .userCancelled(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }
@@ -126,7 +126,7 @@ public struct RadrootsMediaAsset: Sendable, Equatable, Hashable {
         self.pixelWidth = try RadrootsCaptureIntakeValidation.normalizedDimension(pixelWidth, field: "pixel width")
         self.pixelHeight = try RadrootsCaptureIntakeValidation.normalizedDimension(pixelHeight, field: "pixel height")
         if self.pixelWidth == nil || self.pixelHeight == nil {
-            guard self.pixelWidth == nil && self.pixelHeight == nil else {
+            guard self.pixelWidth == nil, self.pixelHeight == nil else {
                 throw RadrootsCaptureIntakeError.invalidRequest("image dimensions must include width and height together")
             }
         }
@@ -278,13 +278,13 @@ public enum RadrootsCaptureIntakeValidation {
         guard !trimmed.isEmpty else {
             throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be empty")
         }
-        guard trimmed != "." && trimmed != ".." else {
+        guard trimmed != ".", trimmed != ".." else {
             throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be a path segment")
         }
         guard !NSString(string: trimmed).isAbsolutePath else {
             throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be absolute")
         }
-        guard !trimmed.contains("/") && !trimmed.contains("\\") && !trimmed.contains("\0") else {
+        guard !trimmed.contains("/"), !trimmed.contains("\\"), !trimmed.contains("\0") else {
             throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot contain path separators")
         }
         guard trimmed.rangeOfCharacter(from: .controlCharacters) == nil else {

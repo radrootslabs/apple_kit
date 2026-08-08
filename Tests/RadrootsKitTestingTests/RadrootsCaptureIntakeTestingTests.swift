@@ -1,14 +1,14 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func fakeMediaPickerReturnsConfiguredSupportAndResults() async throws {
     let asset = try testMediaAsset()
     let importResult = try RadrootsMediaImportResult(items: [asset])
     let captureResult = RadrootsMediaCaptureResult(item: asset)
-    let picker = RadrootsFakeMediaPicker(
-        support: try RadrootsMediaPickerSupport(
+    let picker = try RadrootsFakeMediaPicker(
+        support: RadrootsMediaPickerSupport(
             importAvailable: true,
             cameraCaptureAvailable: true,
             supportedImportKinds: [.image],
@@ -33,8 +33,8 @@ import RadrootsKitTesting
 
 @Test func fakeMediaPickerReturnsTypedFailures() async throws {
     let asset = try testMediaAsset()
-    let picker = RadrootsFakeMediaPicker(
-        support: try RadrootsMediaPickerSupport(
+    let picker = try RadrootsFakeMediaPicker(
+        support: RadrootsMediaPickerSupport(
             importAvailable: true,
             cameraCaptureAvailable: true,
             supportedImportKinds: [.image],
@@ -46,20 +46,20 @@ import RadrootsKitTesting
     )
 
     await #expect(throws: RadrootsCaptureIntakeError.userCancelled("media import was cancelled")) {
-        _ = try await picker.importMedia(try RadrootsMediaImportRequest())
+        _ = try await picker.importMedia(RadrootsMediaImportRequest())
     }
 
     await picker.setCaptureOutcome(.failure(.permissionDenied("camera access is denied")))
 
     await #expect(throws: RadrootsCaptureIntakeError.permissionDenied("camera access is denied")) {
-        _ = try await picker.captureMedia(try RadrootsMediaCaptureRequest())
+        _ = try await picker.captureMedia(RadrootsMediaCaptureRequest())
     }
 }
 
 @Test func fakeDocumentScannerReturnsConfiguredSupportAndResults() async throws {
     let document = try testScannedDocument()
-    let scanner = RadrootsFakeDocumentScanner(
-        support: try RadrootsDocumentScannerSupport(
+    let scanner = try RadrootsFakeDocumentScanner(
+        support: RadrootsDocumentScannerSupport(
             interactiveScanAvailable: true,
             multiPageSupported: true,
             supportedOutputKinds: [.pdf]
@@ -76,8 +76,8 @@ import RadrootsKitTesting
 }
 
 @Test func fakeDocumentScannerReturnsTypedFailures() async throws {
-    let scanner = RadrootsFakeDocumentScanner(
-        support: try RadrootsDocumentScannerSupport(
+    let scanner = try RadrootsFakeDocumentScanner(
+        support: RadrootsDocumentScannerSupport(
             interactiveScanAvailable: false,
             multiPageSupported: false,
             supportedOutputKinds: []

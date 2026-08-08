@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func permissionSnapshotsPreserveKindStatusAndObservationTime() {
     let observedAt = Date(timeIntervalSince1970: 20)
@@ -68,7 +68,7 @@ import Testing
     #expect(reading.horizontalAccuracyMeters == 5)
     #expect(try reading.age(relativeTo: Date(timeIntervalSince1970: 106)) == 6)
     #expect(try reading.isFresh(relativeTo: Date(timeIntervalSince1970: 106), maximumAgeSeconds: 10))
-    #expect(!(try reading.isFresh(relativeTo: Date(timeIntervalSince1970: 120), maximumAgeSeconds: 10)))
+    #expect(try !(reading.isFresh(relativeTo: Date(timeIntervalSince1970: 120), maximumAgeSeconds: 10)))
 
     #expect(throws: RadrootsLocationServicesError.self) {
         _ = try RadrootsLocationReading(

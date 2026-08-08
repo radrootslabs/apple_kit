@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func fakeUserPresenceRecordsStatusAndVerificationRequests() async throws {
     let presence = RadrootsFakeUserPresence()

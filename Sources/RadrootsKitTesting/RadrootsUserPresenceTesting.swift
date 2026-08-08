@@ -16,10 +16,10 @@ public actor RadrootsFakeUserPresence: RadrootsUserPresence {
         ),
         verificationOutcome: Result<Bool, RadrootsUserPresenceError> = .success(true)
     ) {
-        self.statusValue = status
+        statusValue = status
         self.verificationOutcome = verificationOutcome
-        self.statusRequestCountValue = 0
-        self.verificationRequestsValue = []
+        statusRequestCountValue = 0
+        verificationRequestsValue = []
     }
 
     public func setStatus(_ status: RadrootsUserPresenceStatus) {
@@ -38,9 +38,9 @@ public actor RadrootsFakeUserPresence: RadrootsUserPresence {
     public func verify(_ request: RadrootsUserPresenceRequest) async throws -> RadrootsUserPresenceResult {
         verificationRequestsValue.append(request)
         switch verificationOutcome {
-        case .success(let verified):
+        case let .success(verified):
             return RadrootsUserPresenceResult(policy: request.policy, verified: verified)
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

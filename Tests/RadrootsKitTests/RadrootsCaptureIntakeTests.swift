@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func mediaImportRequestNormalizesKindsAndSelectionLimit() throws {
     let request = try RadrootsMediaImportRequest(

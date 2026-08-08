@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func backgroundTaskIdentifierNormalizesAndRejectsUnsafeValues() throws {
     let identifier = try RadrootsBackgroundTaskIdentifier(" ORG.RADROOTS.FIELD-IOS.refresh ")

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func telemetryEventNormalizesSafeIdentifiersAndFields() throws {
     let event = try RadrootsTelemetryEvent(
@@ -9,9 +9,9 @@ import Testing
         level: .notice,
         message: " Startup began ",
         fields: [
-            try .integer("configured_relay_count", 3),
-            try .bool("has_identity", true),
-            try .string("relay_light", "green")
+            .integer("configured_relay_count", 3),
+            .bool("has_identity", true),
+            .string("relay_light", "green"),
         ],
         occurredAt: Date(timeIntervalSince1970: 42)
     )
@@ -38,8 +38,8 @@ import Testing
         _ = try RadrootsTelemetryEvent(
             name: "field_ios.relay.status",
             fields: [
-                try .integer("connected_count", 1),
-                try .integer("connected_count", 2)
+                .integer("connected_count", 1),
+                .integer("connected_count", 2),
             ]
         )
     }
@@ -54,11 +54,11 @@ import Testing
         level: .error,
         message: "failed with nsec1secretvalue",
         fields: [
-            try .string("relay_error", "path /Users/person/container"),
-            try .string("selected_secret_key_name", "field identity"),
-            try .string("public_reason", "event id \(secretHex)"),
-            try .integer("absolute_path_count", 1),
-            try .stringList("relay_urls", ["wss://radroots.org", "nsec1relay"])
+            .string("relay_error", "path /Users/person/container"),
+            .string("selected_secret_key_name", "field identity"),
+            .string("public_reason", "event id \(secretHex)"),
+            .integer("absolute_path_count", 1),
+            .stringList("relay_urls", ["wss://radroots.org", "nsec1relay"]),
         ]
     )
 
@@ -81,7 +81,7 @@ import Testing
         name: "field_ios.identity.import",
         message: "imported nsec1secret",
         fields: [
-            try .string("identity_state", "imported")
+            .string("identity_state", "imported"),
         ]
     )
 

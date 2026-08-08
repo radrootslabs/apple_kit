@@ -5,7 +5,7 @@ let package = Package(
     name: "RadrootsKit",
     platforms: [
         .iOS(.v18),
-        .macOS(.v15)
+        .macOS(.v15),
     ],
     products: [
         .library(
@@ -15,19 +15,22 @@ let package = Package(
         .library(
             name: "RadrootsKitTesting",
             targets: ["RadrootsKitTesting"]
-        )
+        ),
     ],
     dependencies: [
         .package(
             url: "https://github.com/21-DOT-DEV/swift-secp256k1.git",
             revision: "e70a10e036a55fffea31568f0af92d69b6d449cd"
-        )
+        ),
     ],
     targets: [
         .target(
             name: "RadrootsKit",
             dependencies: [
-                .product(name: "P256K", package: "swift-secp256k1")
+                .product(name: "P256K", package: "swift-secp256k1"),
+            ],
+            resources: [
+                .process("PrivacyInfo.xcprivacy"),
             ],
             linkerSettings: [
                 .linkedFramework("Security"),
@@ -39,7 +42,7 @@ let package = Package(
                 .linkedFramework("ImageIO"),
                 .linkedFramework("UniformTypeIdentifiers"),
                 .linkedFramework("CoreLocation"),
-                .linkedFramework("BackgroundTasks", .when(platforms: [.iOS]))
+                .linkedFramework("BackgroundTasks", .when(platforms: [.iOS])),
             ]
         ),
         .target(
@@ -53,6 +56,6 @@ let package = Package(
         .testTarget(
             name: "RadrootsKitTestingTests",
             dependencies: ["RadrootsKitTesting"]
-        )
+        ),
     ]
 )

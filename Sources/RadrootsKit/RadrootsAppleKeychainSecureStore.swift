@@ -7,7 +7,7 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
 
     public init(servicePrefix: String = "org.radroots.kit.secure-store") {
         self.servicePrefix = servicePrefix
-        self.accessControlFactory = Self.makeAccessControl(for:)
+        accessControlFactory = Self.makeAccessControl(for:)
     }
 
     init(
@@ -37,7 +37,7 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
             throw Self.mapStatus(addStatus, defaultMessage: "keychain write failed")
         }
 
-        let updateStatus = SecItemUpdate(try baseQuery(for: key) as CFDictionary, attributes as CFDictionary)
+        let updateStatus = try SecItemUpdate(baseQuery(for: key) as CFDictionary, attributes as CFDictionary)
         guard updateStatus == errSecSuccess else {
             throw Self.mapStatus(updateStatus, defaultMessage: "keychain update failed")
         }
@@ -77,14 +77,14 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     }
 
     public func delete(_ key: RadrootsSecureStoreKey) throws {
-        let status = SecItemDelete(try baseQuery(for: key) as CFDictionary)
+        let status = try SecItemDelete(baseQuery(for: key) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw Self.mapStatus(status, defaultMessage: "keychain delete failed")
         }
     }
 
     public func deleteNamespace(_ namespace: String) throws {
-        let status = SecItemDelete(try namespaceQuery(namespace) as CFDictionary)
+        let status = try SecItemDelete(namespaceQuery(namespace) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw Self.mapStatus(status, defaultMessage: "keychain namespace delete failed")
         }
@@ -92,20 +92,20 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
 
     func baseQuery(for key: RadrootsSecureStoreKey) throws -> [String: Any] {
         let normalizedKey = try key.normalized()
-        return [
+        return try [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: try normalizedKey.serviceName(servicePrefix: servicePrefix),
-            kSecAttrAccount as String: normalizedKey.name
+            kSecAttrService as String: normalizedKey.serviceName(servicePrefix: servicePrefix),
+            kSecAttrAccount as String: normalizedKey.name,
         ]
     }
 
     func namespaceQuery(_ namespace: String) throws -> [String: Any] {
-        return [
+        try [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: try RadrootsSecureStoreKey.serviceName(
+            kSecAttrService as String: RadrootsSecureStoreKey.serviceName(
                 servicePrefix: servicePrefix,
                 namespace: namespace
-            )
+            ),
         ]
     }
 
@@ -144,7 +144,7 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     ) throws -> [String: Any] {
         let mapping = keychainPolicyMapping(for: policy)
         var attributes: [String: Any] = [
-            kSecValueData as String: value
+            kSecValueData as String: value,
         ]
         if mapping.usesAccessControl {
             attributes[kSecAttrAccessControl as String] = try accessControl(for: mapping)

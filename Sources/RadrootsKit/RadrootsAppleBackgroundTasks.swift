@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(BackgroundTasks) && os(iOS)
-import BackgroundTasks
+    import BackgroundTasks
 #endif
 
 public struct RadrootsAppleBackgroundTaskRegistration: Sendable {
@@ -46,41 +46,41 @@ public struct RadrootsAppleBackgroundTaskSchedulerAdapters: Sendable {
 
     public static var live: Self {
         #if canImport(BackgroundTasks) && os(iOS)
-        Self(
-            register: { registration in
-                BGTaskScheduler.shared.register(
-                    forTaskWithIdentifier: registration.identifier.rawValue,
-                    using: nil
-                ) { task in
-                    let completion = RadrootsAppleBackgroundTaskCompletion(task: task)
-                    let handlerTask = Task {
-                        await registration.handler()
+            Self(
+                register: { registration in
+                    BGTaskScheduler.shared.register(
+                        forTaskWithIdentifier: registration.identifier.rawValue,
+                        using: nil
+                    ) { task in
+                        let completion = RadrootsAppleBackgroundTaskCompletion(task: task)
+                        let handlerTask = Task {
+                            await registration.handler()
+                        }
+                        task.expirationHandler = {
+                            handlerTask.cancel()
+                            completion.complete(success: false)
+                        }
+                        Task {
+                            let success = await handlerTask.value
+                            completion.complete(success: success)
+                        }
                     }
-                    task.expirationHandler = {
-                        handlerTask.cancel()
-                        completion.complete(success: false)
-                    }
-                    Task {
-                        let success = await handlerTask.value
-                        completion.complete(success: success)
-                    }
+                },
+                submit: { request in
+                    try BGTaskScheduler.shared.submit(Self.platformRequest(for: request))
+                },
+                cancel: { identifier in
+                    BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier.rawValue)
+                },
+                cancelAll: {
+                    BGTaskScheduler.shared.cancelAllTaskRequests()
+                },
+                pendingTasks: {
+                    try await Self.pendingPlatformTaskSnapshots()
                 }
-            },
-            submit: { request in
-                try BGTaskScheduler.shared.submit(Self.platformRequest(for: request))
-            },
-            cancel: { identifier in
-                BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier.rawValue)
-            },
-            cancelAll: {
-                BGTaskScheduler.shared.cancelAllTaskRequests()
-            },
-            pendingTasks: {
-                try await Self.pendingPlatformTaskSnapshots()
-            }
-        )
+            )
         #else
-        Self.unavailable
+            unavailable
         #endif
     }
 
@@ -139,82 +139,82 @@ public final class RadrootsAppleBackgroundTaskScheduler: RadrootsBackgroundTaskS
 }
 
 #if canImport(BackgroundTasks) && os(iOS)
-private extension RadrootsAppleBackgroundTaskSchedulerAdapters {
-    static func platformRequest(for request: RadrootsBackgroundTaskRequest) -> BGTaskRequest {
-        let platformRequest: BGTaskRequest
-        switch request.kind {
-        case .appRefresh:
-            platformRequest = BGAppRefreshTaskRequest(identifier: request.identifier.rawValue)
-        case .processing:
-            let processingRequest = BGProcessingTaskRequest(identifier: request.identifier.rawValue)
-            processingRequest.requiresNetworkConnectivity = request.requiresNetworkConnectivity
-            processingRequest.requiresExternalPower = request.requiresExternalPower
-            platformRequest = processingRequest
+    private extension RadrootsAppleBackgroundTaskSchedulerAdapters {
+        static func platformRequest(for request: RadrootsBackgroundTaskRequest) -> BGTaskRequest {
+            let platformRequest: BGTaskRequest
+            switch request.kind {
+            case .appRefresh:
+                platformRequest = BGAppRefreshTaskRequest(identifier: request.identifier.rawValue)
+            case .processing:
+                let processingRequest = BGProcessingTaskRequest(identifier: request.identifier.rawValue)
+                processingRequest.requiresNetworkConnectivity = request.requiresNetworkConnectivity
+                processingRequest.requiresExternalPower = request.requiresExternalPower
+                platformRequest = processingRequest
+            }
+            platformRequest.earliestBeginDate = request.earliestBeginDate
+            return platformRequest
         }
-        platformRequest.earliestBeginDate = request.earliestBeginDate
-        return platformRequest
-    }
 
-    static func pendingPlatformTaskSnapshots() async throws -> [RadrootsBackgroundTaskSnapshot] {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[RadrootsBackgroundTaskSnapshot], Error>) in
-            BGTaskScheduler.shared.getPendingTaskRequests { requests in
-                do {
-                    let snapshots: [RadrootsBackgroundTaskSnapshot] = try requests.compactMap { request -> RadrootsBackgroundTaskSnapshot? in
-                        guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier) else {
-                            return nil
+        static func pendingPlatformTaskSnapshots() async throws -> [RadrootsBackgroundTaskSnapshot] {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[RadrootsBackgroundTaskSnapshot], Error>) in
+                BGTaskScheduler.shared.getPendingTaskRequests { requests in
+                    do {
+                        let snapshots: [RadrootsBackgroundTaskSnapshot] = try requests.compactMap { request -> RadrootsBackgroundTaskSnapshot? in
+                            guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier) else {
+                                return nil
+                            }
+                            let kind: RadrootsBackgroundTaskKind
+                            let requiresNetworkConnectivity: Bool
+                            let requiresExternalPower: Bool
+                            if let processingRequest = request as? BGProcessingTaskRequest {
+                                kind = .processing
+                                requiresNetworkConnectivity = processingRequest.requiresNetworkConnectivity
+                                requiresExternalPower = processingRequest.requiresExternalPower
+                            } else {
+                                kind = .appRefresh
+                                requiresNetworkConnectivity = false
+                                requiresExternalPower = false
+                            }
+                            return try RadrootsBackgroundTaskSnapshot(
+                                identifier: identifier,
+                                kind: kind,
+                                earliestBeginDate: request.earliestBeginDate,
+                                submittedAt: Date(),
+                                requiresNetworkConnectivity: requiresNetworkConnectivity,
+                                requiresExternalPower: requiresExternalPower
+                            )
                         }
-                        let kind: RadrootsBackgroundTaskKind
-                        let requiresNetworkConnectivity: Bool
-                        let requiresExternalPower: Bool
-                        if let processingRequest = request as? BGProcessingTaskRequest {
-                            kind = .processing
-                            requiresNetworkConnectivity = processingRequest.requiresNetworkConnectivity
-                            requiresExternalPower = processingRequest.requiresExternalPower
-                        } else {
-                            kind = .appRefresh
-                            requiresNetworkConnectivity = false
-                            requiresExternalPower = false
+                        .sorted { left, right in
+                            left.identifier.rawValue < right.identifier.rawValue
                         }
-                        return try RadrootsBackgroundTaskSnapshot(
-                            identifier: identifier,
-                            kind: kind,
-                            earliestBeginDate: request.earliestBeginDate,
-                            submittedAt: Date(),
-                            requiresNetworkConnectivity: requiresNetworkConnectivity,
-                            requiresExternalPower: requiresExternalPower
-                        )
+                        continuation.resume(returning: snapshots)
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
-                    .sorted { left, right in
-                        left.identifier.rawValue < right.identifier.rawValue
-                    }
-                    continuation.resume(returning: snapshots)
-                } catch {
-                    continuation.resume(throwing: error)
                 }
             }
         }
     }
-}
 #endif
 
 #if canImport(BackgroundTasks) && os(iOS)
-private final class RadrootsAppleBackgroundTaskCompletion: @unchecked Sendable {
-    private let task: BGTask
-    private let lock = NSLock()
-    private var completed = false
+    private final class RadrootsAppleBackgroundTaskCompletion: @unchecked Sendable {
+        private let task: BGTask
+        private let lock = NSLock()
+        private var completed = false
 
-    init(task: BGTask) {
-        self.task = task
-    }
-
-    func complete(success: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !completed else {
-            return
+        init(task: BGTask) {
+            self.task = task
         }
-        completed = true
-        task.setTaskCompleted(success: success)
+
+        func complete(success: Bool) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !completed else {
+                return
+            }
+            completed = true
+            task.setTaskCompleted(success: success)
+        }
     }
-}
 #endif

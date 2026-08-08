@@ -35,12 +35,12 @@ public protocol RadrootsPermissionStatusProvider: Sendable {
     func snapshots(for kinds: [RadrootsPermissionKind]) async throws -> [RadrootsPermissionSnapshot]
 }
 
-extension RadrootsPermissionStatusProvider {
-    public func snapshots(for kinds: [RadrootsPermissionKind]) async throws -> [RadrootsPermissionSnapshot] {
+public extension RadrootsPermissionStatusProvider {
+    func snapshots(for kinds: [RadrootsPermissionKind]) async throws -> [RadrootsPermissionSnapshot] {
         var snapshots: [RadrootsPermissionSnapshot] = []
         snapshots.reserveCapacity(kinds.count)
         for kind in kinds {
-            snapshots.append(try await snapshot(for: kind))
+            try await snapshots.append(snapshot(for: kind))
         }
         return snapshots
     }
@@ -98,10 +98,10 @@ public struct RadrootsLocationCoordinate: Sendable, Equatable, Hashable {
     public let longitude: Double
 
     public init(latitude: Double, longitude: Double) throws {
-        guard latitude.isFinite, (-90.0...90.0).contains(latitude) else {
+        guard latitude.isFinite, (-90.0 ... 90.0).contains(latitude) else {
             throw RadrootsLocationServicesError.invalidRequest("latitude must be between -90 and 90")
         }
-        guard longitude.isFinite, (-180.0...180.0).contains(longitude) else {
+        guard longitude.isFinite, (-180.0 ... 180.0).contains(longitude) else {
             throw RadrootsLocationServicesError.invalidRequest("longitude must be between -180 and 180")
         }
         self.latitude = latitude
@@ -189,7 +189,7 @@ public struct RadrootsLocationReading: Sendable, Equatable, Hashable {
         guard let value else {
             return nil
         }
-        guard value.isFinite, (0.0..<360.0).contains(value) else {
+        guard value.isFinite, (0.0 ..< 360.0).contains(value) else {
             throw RadrootsLocationServicesError.invalidRequest("course must be between 0 and 359.999 degrees")
         }
         return value
@@ -253,19 +253,19 @@ public enum RadrootsLocationServicesError: Error, Equatable, Sendable {
 extension RadrootsLocationServicesError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .permissionDenied(let message):
+        case let .permissionDenied(message):
             message
-        case .unavailable(let message):
+        case let .unavailable(message):
             message
-        case .timeout(let message):
+        case let .timeout(message):
             message
-        case .cancelled(let message):
+        case let .cancelled(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }

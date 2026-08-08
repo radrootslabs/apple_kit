@@ -14,10 +14,10 @@ public actor RadrootsFakeBackgroundTaskScheduler: RadrootsBackgroundTaskSchedule
         submitOutcome: Result<Void, RadrootsBackgroundTaskError> = .success(()),
         submittedAt: Date = Date(timeIntervalSince1970: 0)
     ) {
-        self.pendingTaskSnapshots = Dictionary(uniqueKeysWithValues: pendingTasks.map { ($0.identifier, $0) })
-        self.submittedRequestsValue = []
-        self.cancelledIdentifiersValue = []
-        self.cancelAllCountValue = 0
+        pendingTaskSnapshots = Dictionary(uniqueKeysWithValues: pendingTasks.map { ($0.identifier, $0) })
+        submittedRequestsValue = []
+        cancelledIdentifiersValue = []
+        cancelAllCountValue = 0
         self.submitOutcome = submitOutcome
         self.submittedAt = submittedAt
     }
@@ -33,7 +33,7 @@ public actor RadrootsFakeBackgroundTaskScheduler: RadrootsBackgroundTaskSchedule
             let snapshot = try RadrootsBackgroundTaskSnapshot(request: request, submittedAt: submittedAt)
             pendingTaskSnapshots[request.identifier] = snapshot
             return snapshot
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

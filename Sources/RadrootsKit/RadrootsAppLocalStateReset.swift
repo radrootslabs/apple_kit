@@ -45,7 +45,7 @@ public enum RadrootsAppLocalStateReset {
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: trimmed
+            kSecAttrService as String: trimmed,
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {

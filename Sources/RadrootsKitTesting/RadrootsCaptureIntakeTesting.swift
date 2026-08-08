@@ -19,11 +19,11 @@ public actor RadrootsFakeMediaPicker: RadrootsMediaPicker {
         self.support = support
         self.importOutcome = importOutcome
         self.captureOutcome = captureOutcome
-        self.importRequestCountValue = 0
-        self.captureRequestCountValue = 0
-        self.supportRequestCountValue = 0
-        self.lastImportRequestValue = nil
-        self.lastCaptureRequestValue = nil
+        importRequestCountValue = 0
+        captureRequestCountValue = 0
+        supportRequestCountValue = 0
+        lastImportRequestValue = nil
+        lastCaptureRequestValue = nil
     }
 
     public func setSupport(_ support: RadrootsMediaPickerSupport) {
@@ -31,11 +31,11 @@ public actor RadrootsFakeMediaPicker: RadrootsMediaPicker {
     }
 
     public func setImportOutcome(_ outcome: Result<RadrootsMediaImportResult, RadrootsCaptureIntakeError>) {
-        self.importOutcome = outcome
+        importOutcome = outcome
     }
 
     public func setCaptureOutcome(_ outcome: Result<RadrootsMediaCaptureResult, RadrootsCaptureIntakeError>) {
-        self.captureOutcome = outcome
+        captureOutcome = outcome
     }
 
     public func currentSupport() async throws -> RadrootsMediaPickerSupport {
@@ -47,9 +47,9 @@ public actor RadrootsFakeMediaPicker: RadrootsMediaPicker {
         importRequestCountValue += 1
         lastImportRequestValue = request
         switch importOutcome {
-        case .success(let result):
+        case let .success(result):
             return result
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }
@@ -58,9 +58,9 @@ public actor RadrootsFakeMediaPicker: RadrootsMediaPicker {
         captureRequestCountValue += 1
         lastCaptureRequestValue = request
         switch captureOutcome {
-        case .success(let result):
+        case let .success(result):
             return result
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }
@@ -99,9 +99,9 @@ public actor RadrootsFakeDocumentScanner: RadrootsDocumentScanner {
     ) {
         self.support = support
         self.scanOutcome = scanOutcome
-        self.supportRequestCountValue = 0
-        self.scanRequestCountValue = 0
-        self.lastScanRequestValue = nil
+        supportRequestCountValue = 0
+        scanRequestCountValue = 0
+        lastScanRequestValue = nil
     }
 
     public func setSupport(_ support: RadrootsDocumentScannerSupport) {
@@ -109,7 +109,7 @@ public actor RadrootsFakeDocumentScanner: RadrootsDocumentScanner {
     }
 
     public func setScanOutcome(_ outcome: Result<RadrootsScannedDocument, RadrootsCaptureIntakeError>) {
-        self.scanOutcome = outcome
+        scanOutcome = outcome
     }
 
     public func currentSupport() async throws -> RadrootsDocumentScannerSupport {
@@ -121,9 +121,9 @@ public actor RadrootsFakeDocumentScanner: RadrootsDocumentScanner {
         scanRequestCountValue += 1
         lastScanRequestValue = request
         switch scanOutcome {
-        case .success(let document):
+        case let .success(document):
             return document
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

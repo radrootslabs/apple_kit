@@ -11,7 +11,7 @@ public final class RadrootsInMemorySecureStore: RadrootsSecureStore, @unchecked 
     private var entries: [RadrootsSecureStoreKey: Entry]
 
     public init() {
-        self.entries = [:]
+        entries = [:]
     }
 
     public func put(

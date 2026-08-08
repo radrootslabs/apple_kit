@@ -43,9 +43,9 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
     }
 
     public func normalized() throws -> Self {
-        Self(
-            namespace: try Self.normalizedNamespace(namespace),
-            name: try Self.normalizedName(name)
+        try Self(
+            namespace: Self.normalizedNamespace(namespace),
+            name: Self.normalizedName(name)
         )
     }
 
@@ -54,7 +54,7 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
     }
 
     public static func serviceName(servicePrefix: String, namespace: String) throws -> String {
-        "\(try normalizedServicePrefix(servicePrefix)).\(try normalizedNamespace(namespace))"
+        try "\(normalizedServicePrefix(servicePrefix)).\(normalizedNamespace(namespace))"
     }
 
     public static func normalizedServicePrefix(_ servicePrefix: String) throws -> String {
@@ -94,8 +94,8 @@ public protocol RadrootsSecureStore: AnyObject, Sendable {
     func deleteNamespace(_ namespace: String) throws
 }
 
-extension RadrootsSecureStore {
-    public func put(_ value: Data, for key: RadrootsSecureStoreKey) throws {
+public extension RadrootsSecureStore {
+    func put(_ value: Data, for key: RadrootsSecureStoreKey) throws {
         try put(value, for: key, policy: .secureLocalSecret)
     }
 }

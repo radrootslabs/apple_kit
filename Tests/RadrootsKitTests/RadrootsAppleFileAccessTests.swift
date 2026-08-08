@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func appleFileAccessWritesReadsListsAndDeletesInlineFiles() throws {
     let access = try testFileAccess()
@@ -44,7 +44,7 @@ import Testing
 
     try access.write(.inline(data), to: file)
 
-    guard case .stagedBlob(let staged) = try access.read(file, mode: .preferInline(maxBytes: 4)) else {
+    guard case let .stagedBlob(staged) = try access.read(file, mode: .preferInline(maxBytes: 4)) else {
         Issue.record("expected staged blob result")
         return
     }
@@ -108,21 +108,21 @@ import Testing
     let staged = try access.stageFile(file, mediaType: "application/json", filenameHint: "diagnostics.json")
 
     let filePrepared = try access.prepareExport(
-        try RadrootsExportDocumentRequest(
+        RadrootsExportDocumentRequest(
             source: .file(file),
             suggestedFilename: "diagnostics.json",
             mediaType: "application/json"
         )
     )
     let stagedPrepared = try access.prepareExport(
-        try RadrootsExportDocumentRequest(
+        RadrootsExportDocumentRequest(
             source: .stagedBlob(staged),
             suggestedFilename: "staged-diagnostics.json",
             mediaType: "application/json"
         )
     )
     let inlinePrepared = try access.prepareExport(
-        try RadrootsExportDocumentRequest(
+        RadrootsExportDocumentRequest(
             source: .inlineData(data),
             suggestedFilename: "inline-diagnostics.json",
             mediaType: "application/json"
@@ -143,9 +143,9 @@ import Testing
     try access.releasePreparedExport(stagedPrepared)
     try access.releasePreparedExport(inlinePrepared)
 
-    #expect(!(try access.preparedExportExists(filePrepared)))
-    #expect(!(try access.preparedExportExists(stagedPrepared)))
-    #expect(!(try access.preparedExportExists(inlinePrepared)))
+    #expect(try !(access.preparedExportExists(filePrepared)))
+    #expect(try !(access.preparedExportExists(stagedPrepared)))
+    #expect(try !(access.preparedExportExists(inlinePrepared)))
 }
 
 @Test func appleFileAccessKeepsSmallReadsInlineWhenLimitAllowsIt() throws {
@@ -171,14 +171,14 @@ import Testing
         _ = try access.read(RadrootsFileReference(scope: .data, relativePath: "missing.json"), mode: .inline)
     }
     #expect(throws: RadrootsAppleFileError.self) {
-        _ = try access.stageExternalFile(URL(string: "https://radroots.org/file.json")!, mediaType: nil, filenameHint: nil)
+        _ = try access.stageExternalFile(#require(URL(string: "https://radroots.org/file.json")), mediaType: nil, filenameHint: nil)
     }
     #expect(throws: RadrootsAppleFileError.self) {
-        _ = try access.stageExternalFile(try writeExternalTestFile(name: "bad.txt", data: Data("bad".utf8)), mediaType: nil, filenameHint: "../bad.txt")
+        _ = try access.stageExternalFile(writeExternalTestFile(name: "bad.txt", data: Data("bad".utf8)), mediaType: nil, filenameHint: "../bad.txt")
     }
     #expect(throws: RadrootsDocumentInterchangeError.self) {
         _ = try access.prepareExport(
-            try RadrootsExportDocumentRequest(
+            RadrootsExportDocumentRequest(
                 source: .inlineData(Data("bad".utf8)),
                 suggestedFilename: "../bad.txt",
                 mediaType: "text/plain"

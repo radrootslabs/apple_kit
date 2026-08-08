@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 import RadrootsKit
+import Testing
 
 @Test func userPresenceRequestNormalizesReason() throws {
     let request = try RadrootsUserPresenceRequest(

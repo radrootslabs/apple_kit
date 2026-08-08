@@ -18,10 +18,10 @@ public actor RadrootsFakeExternalActions: RadrootsExternalActions {
         self.capabilityOverrides = capabilityOverrides
         self.defaultCanOpen = defaultCanOpen
         self.openOutcome = openOutcome
-        self.capabilityRequestCountValue = 0
-        self.openRequestCountValue = 0
-        self.lastCapabilityDestinationValue = nil
-        self.openedDestinationsValue = []
+        capabilityRequestCountValue = 0
+        openRequestCountValue = 0
+        lastCapabilityDestinationValue = nil
+        openedDestinationsValue = []
     }
 
     public func setCapability(_ canOpen: Bool, for destination: RadrootsExternalActionDestination) {
@@ -51,7 +51,7 @@ public actor RadrootsFakeExternalActions: RadrootsExternalActions {
         switch openOutcome {
         case .success:
             return
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

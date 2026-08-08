@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func deterministicLaunchConfigurationAddsStableLocaleArguments() {
     let config = RadrootsUITestLaunchConfiguration.deterministic(
@@ -15,7 +15,7 @@ import RadrootsKitTesting
         "-AppleLanguages",
         "(en)",
         "-AppleLocale",
-        "en_US_POSIX"
+        "en_US_POSIX",
     ])
 }
 
@@ -28,7 +28,7 @@ import RadrootsKitTesting
     #expect(config.mergedEnvironment(over: ["A": "old", "C": "keep"]) == [
         "A": "override",
         "B": "new",
-        "C": "keep"
+        "C": "keep",
     ])
 }
 
@@ -106,7 +106,7 @@ import RadrootsKitTesting
     #expect(try await service.requestWhenInUseAuthorization() == .authorizedWhenInUse)
     #expect(await service.currentAvailability().authorization == .authorizedWhenInUse)
 
-    let result = try await service.currentLocation(try RadrootsCurrentLocationRequest(timeoutSeconds: 2))
+    let result = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 2))
     #expect(result.reading == reading)
     #expect(result.authorization == .authorizedWhenInUse)
     #expect(await service.requestAuthorizationCount == 1)
@@ -129,6 +129,6 @@ import RadrootsKitTesting
     await service.setCurrentLocationOutcome(.failure(.timeout("timed out")))
 
     await #expect(throws: RadrootsLocationServicesError.timeout("timed out")) {
-        _ = try await service.currentLocation(try RadrootsCurrentLocationRequest(timeoutSeconds: 2))
+        _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 2))
     }
 }

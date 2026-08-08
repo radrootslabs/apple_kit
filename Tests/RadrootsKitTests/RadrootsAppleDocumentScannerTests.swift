@@ -1,20 +1,20 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 #if !(canImport(UIKit) && canImport(VisionKit))
-@Test func appleDocumentScannerReportsUnavailableWithoutVisionKitScanner() async throws {
-    let scanner = try RadrootsAppleDocumentScanner(fileAccess: documentScannerTestFileAccess())
-    let support = try await scanner.currentSupport()
+    @Test func appleDocumentScannerReportsUnavailableWithoutVisionKitScanner() async throws {
+        let scanner = try RadrootsAppleDocumentScanner(fileAccess: documentScannerTestFileAccess())
+        let support = try await scanner.currentSupport()
 
-    #expect(!support.interactiveScanAvailable)
-    #expect(!support.multiPageSupported)
-    #expect(support.supportedOutputKinds.isEmpty)
+        #expect(!support.interactiveScanAvailable)
+        #expect(!support.multiPageSupported)
+        #expect(support.supportedOutputKinds.isEmpty)
 
-    await #expect(throws: RadrootsCaptureIntakeError.unavailable("document scanner is unavailable")) {
-        _ = try await scanner.scanDocument(RadrootsDocumentScanRequest())
+        await #expect(throws: RadrootsCaptureIntakeError.unavailable("document scanner is unavailable")) {
+            _ = try await scanner.scanDocument(RadrootsDocumentScanRequest())
+        }
     }
-}
 #endif
 
 private func documentScannerTestFileAccess() throws -> RadrootsAppleFileAccess {

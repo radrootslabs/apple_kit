@@ -1,7 +1,7 @@
+import CoreTransferable
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
-import CoreTransferable
 
 public enum RadrootsDocumentPresentationAdapter {
     public static func contentTypes(for request: RadrootsDocumentImportRequest) -> [UTType] {
@@ -63,18 +63,18 @@ public enum RadrootsDocumentPresentationAdapter {
     ) throws -> RadrootsShareTransferItem {
         for item in request.items {
             switch try item.normalized {
-            case .text(let text):
+            case let .text(text):
                 return try RadrootsShareTransferItem(text: text, subject: request.subject)
-            case .url(let url):
+            case let .url(url):
                 return try RadrootsShareTransferItem(url: url, subject: request.subject)
-            case .file(let file, let suggestedFilename, let mediaType, let sizeBytes):
+            case let .file(file, suggestedFilename, mediaType, sizeBytes):
                 guard let fileAccess else {
                     continue
                 }
                 let export = try fileAccess.prepareExport(
                     RadrootsExportDocumentRequest(
                         source: .file(file),
-                        suggestedFilename: try shareFilename(
+                        suggestedFilename: shareFilename(
                             explicitFilename: suggestedFilename,
                             fallbackFilename: NSString(string: file.relativePath).lastPathComponent
                         ),
@@ -83,14 +83,14 @@ public enum RadrootsDocumentPresentationAdapter {
                     )
                 )
                 return try RadrootsShareTransferItem(preparedExport: export, subject: request.subject)
-            case .stagedBlob(let stagedBlob, let suggestedFilename):
+            case let .stagedBlob(stagedBlob, suggestedFilename):
                 guard let fileAccess else {
                     continue
                 }
                 let export = try fileAccess.prepareExport(
                     RadrootsExportDocumentRequest(
                         source: .stagedBlob(stagedBlob),
-                        suggestedFilename: try shareFilename(
+                        suggestedFilename: shareFilename(
                             explicitFilename: suggestedFilename,
                             fallbackFilename: stagedBlob.filenameHint ?? stagedBlob.blobID
                         ),
@@ -127,7 +127,7 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     public let subject: String?
 
     public init(text: String, subject: String? = nil) throws {
-        self.payload = .text(try RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text"))
+        payload = try .text(RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text"))
         self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
             subject,
             field: "share transfer subject"
@@ -135,7 +135,7 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     }
 
     public init(url: URL, subject: String? = nil) throws {
-        self.payload = .url(try RadrootsDocumentInterchangeValidation.normalizedPublicURL(url))
+        payload = try .url(RadrootsDocumentInterchangeValidation.normalizedPublicURL(url))
         self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
             subject,
             field: "share transfer subject"
@@ -143,7 +143,7 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     }
 
     public init(preparedExport: RadrootsPreparedExportDocument, subject: String? = nil) throws {
-        self.payload = .file(preparedExport)
+        payload = .file(preparedExport)
         self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
             subject,
             field: "share transfer subject"
@@ -152,9 +152,9 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
 
     public var text: String? {
         switch payload {
-        case .text(let text):
+        case let .text(text):
             text
-        case .url(let url):
+        case let .url(url):
             url.absoluteString
         case .file:
             nil
@@ -162,14 +162,14 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     }
 
     public var url: URL? {
-        guard case .url(let url) = payload else {
+        guard case let .url(url) = payload else {
             return nil
         }
         return url
     }
 
     public var preparedExport: RadrootsPreparedExportDocument? {
-        guard case .file(let preparedExport) = payload else {
+        guard case let .file(preparedExport) = payload else {
             return nil
         }
         return preparedExport
@@ -177,11 +177,11 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
 
     public var transferText: String {
         switch payload {
-        case .text(let text):
+        case let .text(text):
             text
-        case .url(let url):
+        case let .url(url):
             url.absoluteString
-        case .file(let preparedExport):
+        case let .file(preparedExport):
             preparedExport.suggestedFilename
         }
     }
@@ -199,14 +199,14 @@ public struct RadrootsPreparedExportFileDocument: FileDocument {
     public let fileURL: URL
 
     public init(preparedExport: RadrootsPreparedExportDocument) {
-        self.fileURL = preparedExport.fileURL
+        fileURL = preparedExport.fileURL
     }
 
-    public init(configuration: ReadConfiguration) throws {
+    public init(configuration _: ReadConfiguration) throws {
         throw RadrootsDocumentInterchangeError.invalidRequest("prepared export documents are write only")
     }
 
-    public func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    public func fileWrapper(configuration _: WriteConfiguration) throws -> FileWrapper {
         try FileWrapper(url: fileURL, options: [])
     }
 }
@@ -221,7 +221,7 @@ public struct RadrootsDocumentImportPresentationModifier: ViewModifier {
         fileAccess: any RadrootsFileAccess,
         onCompletion: @escaping (Result<RadrootsDocumentImportResult, Error>) -> Void
     ) {
-        self._request = request
+        _request = request
         self.fileAccess = fileAccess
         self.onCompletion = onCompletion
     }
@@ -266,7 +266,7 @@ public struct RadrootsDocumentImportPresentationModifier: ViewModifier {
                     suggestedFilename: sourceURL.lastPathComponent
                 )
             }
-            onCompletion(.success(try RadrootsDocumentImportResult(documents: documents)))
+            try onCompletion(.success(RadrootsDocumentImportResult(documents: documents)))
         } catch {
             onCompletion(.failure(error))
         }
@@ -281,7 +281,7 @@ public struct RadrootsDocumentExportPresentationModifier: ViewModifier {
         preparedExport: Binding<RadrootsPreparedExportDocument?>,
         onCompletion: @escaping (Result<RadrootsExportDocumentResult, Error>) -> Void
     ) {
-        self._preparedExport = preparedExport
+        _preparedExport = preparedExport
         self.onCompletion = onCompletion
     }
 
@@ -310,9 +310,9 @@ public struct RadrootsDocumentExportPresentationModifier: ViewModifier {
         preparedExport = nil
         do {
             let destinationURL = try result.get()
-            onCompletion(
+            try onCompletion(
                 .success(
-                    try RadrootsExportDocumentResult(
+                    RadrootsExportDocumentResult(
                         exportedFilename: destinationURL.lastPathComponent.isEmpty
                             ? currentExport.suggestedFilename
                             : destinationURL.lastPathComponent,
@@ -335,7 +335,7 @@ public struct RadrootsSharePresentationLink<Label: View>: View {
         request: RadrootsShareRequest,
         @ViewBuilder label: @escaping () -> Label
     ) throws {
-        self.transferItem = try RadrootsDocumentPresentationAdapter.transferItem(for: request)
+        transferItem = try RadrootsDocumentPresentationAdapter.transferItem(for: request)
         self.label = label
     }
 
@@ -344,31 +344,30 @@ public struct RadrootsSharePresentationLink<Label: View>: View {
         fileAccess: any RadrootsFileAccess,
         @ViewBuilder label: @escaping () -> Label
     ) throws {
-        self.transferItem = try RadrootsDocumentPresentationAdapter.transferItem(
+        transferItem = try RadrootsDocumentPresentationAdapter.transferItem(
             for: request,
             fileAccess: fileAccess
         )
         self.label = label
     }
 
-    @ViewBuilder
     public var body: some View {
         switch transferItem.payload {
-        case .text(let text):
+        case let .text(text):
             ShareLink(
                 item: text,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),
                 message: Text(text),
                 label: label
             )
-        case .url(let url):
+        case let .url(url):
             ShareLink(
                 item: url,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),
                 message: Text(url.absoluteString),
                 label: label
             )
-        case .file(let preparedExport):
+        case let .file(preparedExport):
             ShareLink(
                 item: preparedExport.fileURL,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),

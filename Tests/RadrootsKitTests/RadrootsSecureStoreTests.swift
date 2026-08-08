@@ -1,7 +1,7 @@
 import Foundation
+@testable import RadrootsKit
 import Security
 import Testing
-@testable import RadrootsKit
 
 @Test func secureStoreKeyBuildsServiceName() throws {
     let key = RadrootsSecureStoreKey(namespace: "session", name: "token")

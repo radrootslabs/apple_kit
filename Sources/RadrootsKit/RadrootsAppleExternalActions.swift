@@ -1,11 +1,11 @@
 import Foundation
 
 #if canImport(AppKit)
-@preconcurrency import AppKit
+    @preconcurrency import AppKit
 #endif
 
 #if canImport(UIKit)
-@preconcurrency import UIKit
+    @preconcurrency import UIKit
 #endif
 
 public struct RadrootsAppleExternalActionsAdapters: Sendable {
@@ -25,49 +25,49 @@ public struct RadrootsAppleExternalActionsAdapters: Sendable {
 
     public static var live: Self {
         #if canImport(UIKit)
-        Self(
-            appSettingsURL: {
-                await MainActor.run {
-                    URL(string: UIApplication.openSettingsURLString)
+            Self(
+                appSettingsURL: {
+                    await MainActor.run {
+                        URL(string: UIApplication.openSettingsURLString)
+                    }
+                },
+                canOpenURL: { url in
+                    await MainActor.run {
+                        UIApplication.shared.canOpenURL(url)
+                    }
+                },
+                openURL: { url in
+                    await Self.openUIKitURL(url)
                 }
-            },
-            canOpenURL: { url in
-                await MainActor.run {
-                    UIApplication.shared.canOpenURL(url)
-                }
-            },
-            openURL: { url in
-                await Self.openUIKitURL(url)
-            }
-        )
+            )
         #elseif canImport(AppKit)
-        Self(
-            appSettingsURL: {
-                nil
-            },
-            canOpenURL: { url in
-                await MainActor.run {
-                    NSWorkspace.shared.urlForApplication(toOpen: url) != nil
+            Self(
+                appSettingsURL: {
+                    nil
+                },
+                canOpenURL: { url in
+                    await MainActor.run {
+                        NSWorkspace.shared.urlForApplication(toOpen: url) != nil
+                    }
+                },
+                openURL: { url in
+                    await MainActor.run {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
-            },
-            openURL: { url in
-                await MainActor.run {
-                    NSWorkspace.shared.open(url)
-                }
-            }
-        )
+            )
         #else
-        Self(
-            appSettingsURL: {
-                nil
-            },
-            canOpenURL: { _ in
-                false
-            },
-            openURL: { _ in
-                false
-            }
-        )
+            Self(
+                appSettingsURL: {
+                    nil
+                },
+                canOpenURL: { _ in
+                    false
+                },
+                openURL: { _ in
+                    false
+                }
+            )
         #endif
     }
 }
@@ -116,14 +116,14 @@ public final class RadrootsAppleExternalActions: RadrootsExternalActions, Sendab
 }
 
 #if canImport(UIKit)
-private extension RadrootsAppleExternalActionsAdapters {
-    @MainActor
-    static func openUIKitURL(_ url: URL) async -> Bool {
-        await withCheckedContinuation { continuation in
-            UIApplication.shared.open(url, options: [:]) { success in
-                continuation.resume(returning: success)
+    private extension RadrootsAppleExternalActionsAdapters {
+        @MainActor
+        static func openUIKitURL(_ url: URL) async -> Bool {
+            await withCheckedContinuation { continuation in
+                UIApplication.shared.open(url, options: [:]) { success in
+                    continuation.resume(returning: success)
+                }
             }
         }
     }
-}
 #endif

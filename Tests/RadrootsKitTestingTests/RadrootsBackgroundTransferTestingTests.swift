@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func inMemoryBackgroundTransferStorePersistsSnapshotsInIdentifierOrder() async throws {
     let first = try RadrootsBackgroundTransferSnapshot(
@@ -17,7 +17,7 @@ import RadrootsKitTesting
 
     #expect(try await store.loadSnapshots().map(\.identifier.rawValue) == [
         "field.transfer.a",
-        "field.transfer.b"
+        "field.transfer.b",
     ])
 
     try await store.removeSnapshot(for: second.identifier)

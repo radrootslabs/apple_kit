@@ -70,15 +70,15 @@ public enum RadrootsExternalActionError: Error, Equatable, Sendable {
 extension RadrootsExternalActionError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .blockedByPolicy(let message):
+        case let .blockedByPolicy(message):
             message
-        case .unavailable(let message):
+        case let .unavailable(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }
@@ -98,7 +98,8 @@ public enum RadrootsExternalActionValidation {
               components.host?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
               components.user == nil,
               components.password == nil,
-              let url = components.url else {
+              let url = components.url
+        else {
             throw RadrootsExternalActionError.blockedByPolicy("external web urls must use https with a host")
         }
         return url
@@ -139,7 +140,8 @@ public enum RadrootsExternalActionValidation {
               components.host?.lowercased() == "maps.apple.com",
               components.user == nil,
               components.password == nil,
-              let url = components.url else {
+              let url = components.url
+        else {
             throw RadrootsExternalActionError.blockedByPolicy("apple maps urls must use https://maps.apple.com")
         }
         return url
@@ -157,7 +159,7 @@ public enum RadrootsExternalActionValidation {
             URLQueryItem(
                 name: "ll",
                 value: "\(coordinate.latitude),\(coordinate.longitude)"
-            )
+            ),
         ]
         if let label {
             let normalizedLabel = try normalizedOptionalLabel(label)

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func appleBackgroundTaskSchedulerRegistersAndSubmitsThroughAdapters() async throws {
     let probe = RadrootsAppleBackgroundTaskSchedulerProbe(now: Date(timeIntervalSince1970: 100))
@@ -95,14 +95,14 @@ private actor RadrootsAppleBackgroundTaskSchedulerProbe {
         submitOutcome: Result<Void, RadrootsBackgroundTaskError> = .success(()),
         pendingSnapshots: [RadrootsBackgroundTaskSnapshot] = []
     ) {
-        self.nowValue = now
+        nowValue = now
         self.registerResult = registerResult
         self.submitOutcome = submitOutcome
-        self.pendingSnapshotsValue = pendingSnapshots
-        self.registeredIdentifiersValue = []
-        self.submittedRequestsValue = []
-        self.cancelledIdentifiersValue = []
-        self.cancelAllCountValue = 0
+        pendingSnapshotsValue = pendingSnapshots
+        registeredIdentifiersValue = []
+        submittedRequestsValue = []
+        cancelledIdentifiersValue = []
+        cancelAllCountValue = 0
     }
 
     nonisolated func adapters() -> RadrootsAppleBackgroundTaskSchedulerAdapters {
@@ -138,7 +138,7 @@ private actor RadrootsAppleBackgroundTaskSchedulerProbe {
         switch submitOutcome {
         case .success:
             return
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

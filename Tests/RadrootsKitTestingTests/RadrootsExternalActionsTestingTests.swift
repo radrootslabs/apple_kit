@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func fakeExternalActionsRecordsCapabilityAndOpenRequests() async throws {
     let web = try RadrootsExternalActionDestination.web("https://radroots.org")
@@ -12,7 +12,7 @@ import RadrootsKitTesting
     )
 
     #expect(await actions.canOpen(web).canOpen)
-    #expect(!(await actions.canOpen(nostr).canOpen))
+    #expect(await !(actions.canOpen(nostr).canOpen))
     try await actions.open(RadrootsExternalActionRequest(destination: web))
 
     #expect(await actions.capabilityRequestCount == 2)

@@ -50,8 +50,8 @@ public actor RadrootsFakeLocationServices: RadrootsLocationServices {
         self.availability = availability
         self.authorizationAfterRequest = authorizationAfterRequest
         self.currentLocationOutcome = currentLocationOutcome
-        self.requestAuthorizationCountValue = 0
-        self.currentLocationRequestCountValue = 0
+        requestAuthorizationCountValue = 0
+        currentLocationRequestCountValue = 0
     }
 
     public func setAvailability(_ availability: RadrootsLocationServicesAvailability) {
@@ -59,7 +59,7 @@ public actor RadrootsFakeLocationServices: RadrootsLocationServices {
     }
 
     public func setAuthorizationAfterRequest(_ authorization: RadrootsLocationAuthorization) {
-        self.authorizationAfterRequest = authorization
+        authorizationAfterRequest = authorization
     }
 
     public func setCurrentLocationOutcome(_ outcome: Result<RadrootsLocationReading, RadrootsLocationServicesError>) {
@@ -79,15 +79,15 @@ public actor RadrootsFakeLocationServices: RadrootsLocationServices {
         return authorizationAfterRequest
     }
 
-    public func currentLocation(_ request: RadrootsCurrentLocationRequest) async throws -> RadrootsCurrentLocationResult {
+    public func currentLocation(_: RadrootsCurrentLocationRequest) async throws -> RadrootsCurrentLocationResult {
         currentLocationRequestCountValue += 1
         switch currentLocationOutcome {
-        case .success(let reading):
+        case let .success(reading):
             return try RadrootsCurrentLocationResult(
                 reading: reading,
                 authorization: availability.authorization
             )
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

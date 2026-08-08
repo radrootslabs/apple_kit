@@ -5,7 +5,7 @@ public actor RadrootsInMemoryBackgroundTransferStore: RadrootsBackgroundTransfer
     private var snapshotsByIdentifier: [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferSnapshot]
 
     public init(snapshots: [RadrootsBackgroundTransferSnapshot] = []) {
-        self.snapshotsByIdentifier = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.identifier, $0) })
+        snapshotsByIdentifier = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.identifier, $0) })
     }
 
     public func loadSnapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
@@ -42,9 +42,9 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     ) {
         self.store = store
         self.enqueueOutcome = enqueueOutcome
-        self.enqueuedRequestsValue = []
-        self.cancelledIdentifiersValue = []
-        self.handledBackgroundEventIdentifiersValue = []
+        enqueuedRequestsValue = []
+        cancelledIdentifiersValue = []
+        handledBackgroundEventIdentifiersValue = []
         self.updatedAt = updatedAt
     }
 
@@ -63,7 +63,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
             )
             try await store.saveSnapshot(snapshot)
             return RadrootsBackgroundTransferHandle(request: request)
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }

@@ -7,7 +7,7 @@ public enum RadrootsTelemetryError: Error, Equatable, Sendable {
 extension RadrootsTelemetryError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
         }
     }
@@ -55,15 +55,15 @@ public enum RadrootsTelemetryFieldValue: Sendable, Equatable, Hashable {
 
     public var renderedValue: String {
         switch self {
-        case .string(let value):
+        case let .string(value):
             value
-        case .integer(let value):
+        case let .integer(value):
             String(value)
-        case .double(let value):
+        case let .double(value):
             String(value)
-        case .bool(let value):
+        case let .bool(value):
             value ? "true" : "false"
-        case .stringList(let value):
+        case let .stringList(value):
             value.joined(separator: ",")
         }
     }
@@ -73,11 +73,11 @@ public enum RadrootsTelemetryFieldValue: Sendable, Equatable, Hashable {
         policy: RadrootsTelemetryRedactionPolicy
     ) -> RadrootsTelemetryFieldValue {
         switch self {
-        case .string(let value):
+        case let .string(value):
             return .string(policy.redactedString(value, key: key))
         case .integer, .double, .bool:
             return policy.shouldRedactKey(key) ? .string(policy.replacement) : self
-        case .stringList(let values):
+        case let .stringList(values):
             if policy.shouldRedactKey(key) {
                 return .string(policy.replacement)
             }
@@ -126,7 +126,7 @@ public struct RadrootsTelemetryField: Sendable, Equatable, Hashable {
     }
 
     fileprivate init(validatedKey: String, value: RadrootsTelemetryFieldValue) {
-        self.key = validatedKey
+        key = validatedKey
         self.value = value
     }
 
@@ -185,8 +185,8 @@ public struct RadrootsTelemetryEvent: Sendable, Equatable, Hashable {
         fields: [RadrootsTelemetryField],
         occurredAt: Date
     ) {
-        self.name = validatedName
-        self.category = validatedCategory
+        name = validatedName
+        category = validatedCategory
         self.level = level
         self.message = message
         self.fields = fields
@@ -254,7 +254,7 @@ public struct RadrootsTelemetryRedactionPolicy: Sendable, Equatable, Hashable {
             "secret",
             "selected_secret",
             "text",
-            "token"
+            "token",
         ]
         return unsafeFragments.contains { normalized.contains($0) }
     }
@@ -269,7 +269,7 @@ public struct RadrootsTelemetryRedactionPolicy: Sendable, Equatable, Hashable {
             "/private/var/",
             "/var/mobile/containers/",
             "/var/folders/",
-            "file:///"
+            "file:///",
         ]
         if unsafePathFragments.contains(where: { normalized.contains($0) }) {
             return true
@@ -290,7 +290,7 @@ public protocol RadrootsTelemetry: Sendable {
 public struct RadrootsNoopTelemetry: RadrootsTelemetry, Sendable {
     public init() {}
 
-    public func record(_ event: RadrootsTelemetryEvent) async {}
+    public func record(_: RadrootsTelemetryEvent) async {}
 }
 
 public struct RadrootsRedactingTelemetry: RadrootsTelemetry, Sendable {
@@ -365,17 +365,17 @@ public enum RadrootsTelemetryValidation {
 
     public static func validate(_ value: RadrootsTelemetryFieldValue) throws {
         switch value {
-        case .string(let string):
+        case let .string(string):
             try validateStringValue(string)
         case .integer:
             return
-        case .double(let double):
+        case let .double(double):
             guard double.isFinite else {
                 throw RadrootsTelemetryError.invalidRequest("telemetry double field must be finite")
             }
         case .bool:
             return
-        case .stringList(let values):
+        case let .stringList(values):
             guard values.count <= 24 else {
                 throw RadrootsTelemetryError.invalidRequest("telemetry string list field is too long")
             }

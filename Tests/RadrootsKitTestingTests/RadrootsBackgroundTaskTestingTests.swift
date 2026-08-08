@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import RadrootsKit
 import RadrootsKitTesting
+import Testing
 
 @Test func fakeBackgroundTaskSchedulerRecordsSubmittedRequestsAndPendingTasks() async throws {
     let scheduler = RadrootsFakeBackgroundTaskScheduler(

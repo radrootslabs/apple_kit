@@ -7,7 +7,7 @@ public actor RadrootsRecordingTelemetry: RadrootsTelemetry {
 
     public init(minimumLevel: RadrootsTelemetryLevel = .trace) {
         self.minimumLevel = minimumLevel
-        self.recordedEventsValue = []
+        recordedEventsValue = []
     }
 
     public func record(_ event: RadrootsTelemetryEvent) async {

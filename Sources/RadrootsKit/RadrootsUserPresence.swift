@@ -85,19 +85,19 @@ public enum RadrootsUserPresenceError: Error, Equatable, Sendable {
 extension RadrootsUserPresenceError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case .invalidRequest(let message):
+        case let .invalidRequest(message):
             message
-        case .userCancelled(let message):
+        case let .userCancelled(message):
             message
-        case .permissionDenied(let message):
+        case let .permissionDenied(message):
             message
-        case .unavailable(let message):
+        case let .unavailable(message):
             message
-        case .timeout(let message):
+        case let .timeout(message):
             message
-        case .transientFailure(let message):
+        case let .transientFailure(message):
             message
-        case .permanentFailure(let message):
+        case let .permanentFailure(message):
             message
         }
     }

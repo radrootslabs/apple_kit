@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func appleExternalActionsOpensAppSettingsThroughAdapter() async throws {
     let settingsURL = try #require(URL(string: "app-settings:radroots"))
@@ -68,11 +68,11 @@ private actor RadrootsExternalActionAdapterProbe {
         canOpenResult: Bool = true,
         openResult: Bool = true
     ) {
-        self.appSettingsURLValue = appSettingsURL
+        appSettingsURLValue = appSettingsURL
         self.canOpenResult = canOpenResult
         self.openResult = openResult
-        self.canOpenURLsValue = []
-        self.openedURLsValue = []
+        canOpenURLsValue = []
+        openedURLsValue = []
     }
 
     nonisolated func adapters() -> RadrootsAppleExternalActionsAdapters {

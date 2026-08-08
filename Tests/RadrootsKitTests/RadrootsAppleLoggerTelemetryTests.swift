@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func appleLoggerTelemetryEmitsRedactedBoundedRecords() async throws {
     let probe = RadrootsAppleLoggerTelemetryProbe()
@@ -15,8 +15,8 @@ import Testing
         level: .error,
         message: "imported nsec1secret",
         fields: [
-            try .string("relay_light", "red"),
-            try .string("selected_secret_key_name", "field identity")
+            .string("relay_light", "red"),
+            .string("selected_secret_key_name", "field identity"),
         ],
         occurredAt: Date(timeIntervalSince1970: 10)
     )
@@ -35,7 +35,7 @@ import Testing
     #expect(record.renderedMessage.count <= 220)
 }
 
-@Test func appleLoggerTelemetrySanitizesSubsystemAndCategory() async throws {
+@Test func appleLoggerTelemetrySanitizesSubsystemAndCategory() {
     #expect(RadrootsAppleLoggerTelemetry.normalizedSubsystem(" Field iOS / Local ") == "Field_iOS_Local")
     #expect(RadrootsAppleLoggerTelemetry.normalizedSubsystem("    ") == "org.radroots.apple_kit")
     #expect(RadrootsAppleLoggerTelemetry.normalizedCategory(" relay/status ") == "relay_status")
@@ -81,8 +81,8 @@ import Testing
         category: "field_ios",
         level: .notice,
         fields: [
-            try .integer("connecting_count", 1),
-            try .integer("connected_count", 2)
+            .integer("connecting_count", 1),
+            .integer("connected_count", 2),
         ],
         occurredAt: Date(timeIntervalSince1970: 1)
     )

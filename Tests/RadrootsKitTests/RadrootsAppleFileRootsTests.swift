@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func fileRootsDeriveDefaultLogsAndStagedBlobRoots() throws {
     let root = FileManager.default.temporaryDirectory
@@ -34,7 +34,7 @@ import Testing
     #expect(throws: RadrootsAppleFileError.self) {
         _ = try RadrootsAppleFileRoots(
             appIdentifier: "org.radroots.tests",
-            dataRoot: URL(string: "https://radroots.org/data")!,
+            dataRoot: #require(URL(string: "https://radroots.org/data")),
             cacheRoot: root,
             temporaryRoot: root
         )

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import RadrootsKit
+import Testing
 
 @Test func webDestinationAcceptsOnlyHttpsUrlsWithHosts() throws {
     let destination = try RadrootsExternalActionDestination.web(" https://radroots.org/field ")

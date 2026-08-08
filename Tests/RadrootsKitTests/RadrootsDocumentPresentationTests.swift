@@ -1,7 +1,7 @@
 import Foundation
+@testable import RadrootsKit
 import Testing
 import UniformTypeIdentifiers
-@testable import RadrootsKit
 
 @Test func documentPresentationMapsImportContentTypes() throws {
     let request = try RadrootsDocumentImportRequest(
@@ -43,10 +43,10 @@ import UniformTypeIdentifiers
     #expect(textItem.text == "public post")
     #expect(textItem.subject == "Radroots")
 
-    let urlRequest = try RadrootsShareRequest(items: [.url(URL(string: "https://radroots.org/posts/1")!)])
+    let urlRequest = try RadrootsShareRequest(items: [.url(#require(URL(string: "https://radroots.org/posts/1")))])
     let urlItem = try RadrootsDocumentPresentationAdapter.transferItem(for: urlRequest)
 
-    #expect(urlItem.payload == .url(URL(string: "https://radroots.org/posts/1")!))
+    #expect(try urlItem.payload == .url(#require(URL(string: "https://radroots.org/posts/1"))))
     #expect(urlItem.text == "https://radroots.org/posts/1")
 
     let file = RadrootsFileReference(scope: .data, relativePath: "exports/diagnostics.json")
@@ -71,7 +71,7 @@ import UniformTypeIdentifiers
                 suggestedFilename: " diagnostics.json ",
                 mediaType: " Application/JSON ",
                 sizeBytes: UInt64(data.count)
-            )
+            ),
         ],
         subject: " Radroots "
     )
@@ -124,7 +124,7 @@ import UniformTypeIdentifiers
                     suggestedFilename: "private.txt",
                     mediaType: "text/plain",
                     sizeBytes: nil
-                )
+                ),
             ]
         )
     }
@@ -139,7 +139,7 @@ import UniformTypeIdentifiers
                     suggestedFilename: "selected_secret_hex.json",
                     mediaType: "application/json",
                     sizeBytes: nil
-                )
+                ),
             ]
         )
     }
