@@ -2,137 +2,207 @@ import Foundation
 import RadrootsKit
 
 public actor RadrootsInMemoryBackgroundTransferStore: RadrootsBackgroundTransferStore {
-    private var snapshotsByIdentifier: [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferSnapshot]
+  private var snapshotsByIdentifier:
+    [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferSnapshot]
 
-    public init(snapshots: [RadrootsBackgroundTransferSnapshot] = []) {
-        snapshotsByIdentifier = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.identifier, $0) })
-    }
+  public init(snapshots: [RadrootsBackgroundTransferSnapshot] = []) {
+    snapshotsByIdentifier = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.identifier, $0) })
+  }
 
-    public func loadSnapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
-        snapshotsByIdentifier.values.sorted { left, right in
-            left.identifier < right.identifier
-        }
+  public func loadSnapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
+    snapshotsByIdentifier.values.sorted { left, right in
+      left.identifier < right.identifier
     }
+  }
 
-    public func saveSnapshot(_ snapshot: RadrootsBackgroundTransferSnapshot) async throws {
-        snapshotsByIdentifier[snapshot.identifier] = snapshot
-    }
+  public func saveSnapshot(_ snapshot: RadrootsBackgroundTransferSnapshot) async throws {
+    snapshotsByIdentifier[snapshot.identifier] = snapshot
+  }
 
-    public func removeSnapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws {
-        snapshotsByIdentifier.removeValue(forKey: identifier)
-    }
+  public func removeSnapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws {
+    snapshotsByIdentifier.removeValue(forKey: identifier)
+  }
 
-    public func removeAllSnapshots() async throws {
-        snapshotsByIdentifier.removeAll()
-    }
+  public func removeAllSnapshots() async throws {
+    snapshotsByIdentifier.removeAll()
+  }
 }
 
 public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
-    private let store: any RadrootsBackgroundTransferStore
-    private var enqueueOutcome: Result<Void, RadrootsBackgroundTransferError>
-    private var enqueuedRequestsValue: [RadrootsBackgroundTransferRequest]
-    private var cancelledIdentifiersValue: [RadrootsBackgroundTransferIdentifier]
-    private var handledBackgroundEventIdentifiersValue: [String]
-    private let updatedAt: Date
+  private let store: any RadrootsBackgroundTransferStore
+  private var enqueueOutcome: Result<Void, RadrootsBackgroundTransferError>
+  private var enqueuedRequestsValue: [RadrootsBackgroundTransferRequest]
+  private var cancelledIdentifiersValue: [RadrootsBackgroundTransferIdentifier]
+  private var handledBackgroundEventIdentifiersValue: [String]
+  private let updatedAt: Date
 
-    public init(
-        store: any RadrootsBackgroundTransferStore = RadrootsInMemoryBackgroundTransferStore(),
-        enqueueOutcome: Result<Void, RadrootsBackgroundTransferError> = .success(()),
-        updatedAt: Date = Date(timeIntervalSince1970: 0)
-    ) {
-        self.store = store
-        self.enqueueOutcome = enqueueOutcome
-        enqueuedRequestsValue = []
-        cancelledIdentifiersValue = []
-        handledBackgroundEventIdentifiersValue = []
-        self.updatedAt = updatedAt
+  public init(
+    store: any RadrootsBackgroundTransferStore = RadrootsInMemoryBackgroundTransferStore(),
+    enqueueOutcome: Result<Void, RadrootsBackgroundTransferError> = .success(()),
+    updatedAt: Date = Date(timeIntervalSince1970: 0)
+  ) {
+    self.store = store
+    self.enqueueOutcome = enqueueOutcome
+    enqueuedRequestsValue = []
+    cancelledIdentifiersValue = []
+    handledBackgroundEventIdentifiersValue = []
+    self.updatedAt = updatedAt
+  }
+
+  public func setEnqueueOutcome(_ outcome: Result<Void, RadrootsBackgroundTransferError>) {
+    enqueueOutcome = outcome
+  }
+
+  public func enqueue(_ request: RadrootsBackgroundTransferRequest) async throws
+    -> RadrootsBackgroundTransferHandle
+  {
+    enqueuedRequestsValue.append(request)
+    switch enqueueOutcome {
+    case .success:
+      let snapshot = try RadrootsBackgroundTransferSnapshot(
+        request: request,
+        state: .queued,
+        updatedAt: updatedAt
+      )
+      try await store.saveSnapshot(snapshot)
+      return RadrootsBackgroundTransferHandle(request: request)
+    case .failure(let error):
+      throw error
     }
+  }
 
-    public func setEnqueueOutcome(_ outcome: Result<Void, RadrootsBackgroundTransferError>) {
-        enqueueOutcome = outcome
+  public func retry(_ request: RadrootsBackgroundTransferRequest) async throws
+    -> RadrootsBackgroundTransferHandle
+  {
+    try await enqueue(request)
+  }
+
+  public func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
+    cancelledIdentifiersValue.append(identifier)
+    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
+    {
+      let snapshot = try RadrootsBackgroundTransferSnapshot(
+        request: existing.request,
+        state: .cancelled,
+        progress: existing.progress,
+        updatedAt: updatedAt
+      )
+      try await store.saveSnapshot(snapshot)
     }
+  }
 
-    public func enqueue(_ request: RadrootsBackgroundTransferRequest) async throws -> RadrootsBackgroundTransferHandle {
-        enqueuedRequestsValue.append(request)
-        switch enqueueOutcome {
-        case .success:
-            let snapshot = try RadrootsBackgroundTransferSnapshot(
-                request: request,
-                state: .queued,
-                updatedAt: updatedAt
-            )
-            try await store.saveSnapshot(snapshot)
-            return RadrootsBackgroundTransferHandle(request: request)
-        case let .failure(error):
-            throw error
-        }
-    }
-
-    public func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
-        cancelledIdentifiersValue.append(identifier)
-        if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }) {
-            let snapshot = try RadrootsBackgroundTransferSnapshot(
-                request: existing.request,
-                state: .cancelled,
-                progress: existing.progress,
-                updatedAt: updatedAt
-            )
-            try await store.saveSnapshot(snapshot)
-        }
-    }
-
-    public func complete(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
-        guard let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }) else {
-            throw RadrootsBackgroundTransferError.transferFailure("background transfer snapshot not found")
-        }
-        let snapshot = try RadrootsBackgroundTransferSnapshot(
-            request: existing.request,
-            state: .completed,
-            progress: existing.progress,
-            updatedAt: updatedAt
+  public func expire(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
+    cancelledIdentifiersValue.append(identifier)
+    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
+    {
+      try await store.saveSnapshot(
+        RadrootsBackgroundTransferSnapshot(
+          request: existing.request,
+          state: .expired,
+          progress: existing.progress,
+          errorMessage: "background_transfer_expired",
+          updatedAt: updatedAt
         )
-        try await store.saveSnapshot(snapshot)
+      )
     }
+  }
 
-    public func fail(_ identifier: RadrootsBackgroundTransferIdentifier, message: String) async throws {
-        guard let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }) else {
-            throw RadrootsBackgroundTransferError.transferFailure("background transfer snapshot not found")
-        }
-        let snapshot = try RadrootsBackgroundTransferSnapshot(
-            request: existing.request,
-            state: .failed,
-            progress: existing.progress,
-            errorMessage: message,
-            updatedAt: updatedAt
+  public func settle(
+    _ identifier: RadrootsBackgroundTransferIdentifier,
+    verification: RadrootsBackgroundTransferVerification
+  ) async throws {
+    guard
+      let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
+    else {
+      throw RadrootsBackgroundTransferError.transferFailure(
+        "background transfer snapshot not found")
+    }
+    switch verification {
+    case .accepted:
+      try await store.saveSnapshot(
+        RadrootsBackgroundTransferSnapshot(
+          request: existing.request,
+          state: .completed,
+          progress: existing.progress,
+          response: existing.response,
+          downloadedArtifact: existing.downloadedArtifact,
+          updatedAt: updatedAt
         )
-        try await store.saveSnapshot(snapshot)
+      )
+    case .rejected(let code):
+      try await store.saveSnapshot(
+        RadrootsBackgroundTransferSnapshot(
+          request: existing.request,
+          state: .failed,
+          progress: existing.progress,
+          errorMessage: code,
+          updatedAt: updatedAt
+        )
+      )
     }
+  }
 
-    public func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws -> RadrootsBackgroundTransferSnapshot? {
-        try await store.loadSnapshots().first { $0.identifier == identifier }
+  public func complete(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
+    guard
+      let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
+    else {
+      throw RadrootsBackgroundTransferError.transferFailure(
+        "background transfer snapshot not found")
     }
+    let snapshot = try RadrootsBackgroundTransferSnapshot(
+      request: existing.request,
+      state: .completed,
+      progress: existing.progress,
+      updatedAt: updatedAt
+    )
+    try await store.saveSnapshot(snapshot)
+  }
 
-    public func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
-        try await store.loadSnapshots()
+  public func fail(_ identifier: RadrootsBackgroundTransferIdentifier, message: String) async throws
+  {
+    guard
+      let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
+    else {
+      throw RadrootsBackgroundTransferError.transferFailure(
+        "background transfer snapshot not found")
     }
+    let snapshot = try RadrootsBackgroundTransferSnapshot(
+      request: existing.request,
+      state: .failed,
+      progress: existing.progress,
+      errorMessage: message,
+      updatedAt: updatedAt
+    )
+    try await store.saveSnapshot(snapshot)
+  }
 
-    public func handleEventsForBackgroundURLSession(
-        identifier: String,
-        completionHandler: @escaping @Sendable () -> Void
-    ) async {
-        handledBackgroundEventIdentifiersValue.append(identifier)
-        completionHandler()
-    }
+  public func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws
+    -> RadrootsBackgroundTransferSnapshot?
+  {
+    try await store.loadSnapshots().first { $0.identifier == identifier }
+  }
 
-    public var enqueuedRequests: [RadrootsBackgroundTransferRequest] {
-        enqueuedRequestsValue
-    }
+  public func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
+    try await store.loadSnapshots()
+  }
 
-    public var cancelledIdentifiers: [RadrootsBackgroundTransferIdentifier] {
-        cancelledIdentifiersValue
-    }
+  public func handleEventsForBackgroundURLSession(
+    identifier: String,
+    completionHandler: @escaping @Sendable () -> Void
+  ) async {
+    handledBackgroundEventIdentifiersValue.append(identifier)
+    completionHandler()
+  }
 
-    public var handledBackgroundEventIdentifiers: [String] {
-        handledBackgroundEventIdentifiersValue
-    }
+  public var enqueuedRequests: [RadrootsBackgroundTransferRequest] {
+    enqueuedRequestsValue
+  }
+
+  public var cancelledIdentifiers: [RadrootsBackgroundTransferIdentifier] {
+    cancelledIdentifiersValue
+  }
+
+  public var handledBackgroundEventIdentifiers: [String] {
+    handledBackgroundEventIdentifiersValue
+  }
 }
