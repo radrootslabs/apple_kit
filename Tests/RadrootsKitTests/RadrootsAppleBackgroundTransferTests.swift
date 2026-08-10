@@ -289,6 +289,34 @@ import Testing
   #expect(try await store.loadSnapshots().first?.state == .awaitingVerification)
 }
 
+@Test func appleBackgroundTransferCoordinatorRejectsEncodedDescriptorResponse() async throws {
+  let roots = try appleTransferRoots()
+  let store = RadrootsInMemoryBackgroundTransferStore()
+  let coordinator = RadrootsAppleBackgroundTransferCoordinator(
+    sessionIdentifier: "org.radroots.field-ios.background.transfer", store: store,
+    fileResolver: RadrootsAppleBackgroundTransferFileResolver(roots: roots)
+  )
+  let request = try appleUploadRequest(
+    identifier: "field.transfer.upload.encoded",
+    responsePolicy: .boundedJSON(maximumBodyBytes: 1024)
+  )
+  try await store.saveSnapshot(
+    RadrootsBackgroundTransferSnapshot(request: request, state: .running))
+
+  await coordinator.complete(
+    identifier: request.identifier, platformError: nil, stagedDownloadResult: nil,
+    httpResult: RadrootsBackgroundHTTPResult(
+      statusCode: 200, mediaType: "application/json", body: Data("{}".utf8),
+      contentEncoding: "gzip", bodyExceeded: false),
+    bytesTransferred: 10, totalBytesExpected: 10
+  )
+
+  let snapshot = try #require(try await store.loadSnapshots().first)
+  #expect(snapshot.state == .failed)
+  #expect(snapshot.errorMessage == "background_transfer_response_content_encoding")
+  #expect(snapshot.possibleRemoteOrphan)
+}
+
 @Test func appleBackgroundTransferCoordinatorRejectsStatusAndOversizedResponse() async throws {
   let roots = try appleTransferRoots()
   let store = RadrootsInMemoryBackgroundTransferStore()

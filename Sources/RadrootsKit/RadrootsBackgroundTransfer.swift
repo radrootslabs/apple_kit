@@ -144,9 +144,12 @@ public struct RadrootsBackgroundTransferResponsePolicy: Sendable, Equatable, Has
 public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable, Codable {
   public let statusCode: Int
   public let mediaType: String?
+  public let contentEncoding: String?
   public let body: Data?
 
-  public init(statusCode: Int, mediaType: String?, body: Data?) throws {
+  public init(
+    statusCode: Int, mediaType: String?, contentEncoding: String? = nil, body: Data?
+  ) throws {
     guard (100...599).contains(statusCode), body?.count ?? 0 <= 65536 else {
       throw RadrootsBackgroundTransferError.invalidRequest(
         "background transfer response is invalid")
@@ -155,12 +158,20 @@ public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable,
     self.mediaType = try mediaType.map {
       try RadrootsBackgroundTransferValidation.normalizedMediaType($0)
     }
+    let normalizedEncoding = contentEncoding?.trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    guard normalizedEncoding == nil || normalizedEncoding == "identity" else {
+      throw RadrootsBackgroundTransferError.invalidRequest(
+        "background transfer response content encoding is denied")
+    }
+    self.contentEncoding = normalizedEncoding
     self.body = body
   }
 
   private enum CodingKeys: String, CodingKey {
     case statusCode
     case mediaType
+    case contentEncoding
     case body
   }
 
@@ -169,6 +180,7 @@ public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable,
     try self.init(
       statusCode: values.decode(Int.self, forKey: .statusCode),
       mediaType: values.decodeIfPresent(String.self, forKey: .mediaType),
+      contentEncoding: values.decodeIfPresent(String.self, forKey: .contentEncoding),
       body: values.decodeIfPresent(Data.self, forKey: .body)
     )
   }
@@ -177,6 +189,7 @@ public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable,
     var values = encoder.container(keyedBy: CodingKeys.self)
     try values.encode(statusCode, forKey: .statusCode)
     try values.encodeIfPresent(mediaType, forKey: .mediaType)
+    try values.encodeIfPresent(contentEncoding, forKey: .contentEncoding)
     try values.encodeIfPresent(body, forKey: .body)
   }
 }

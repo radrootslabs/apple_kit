@@ -331,16 +331,19 @@ struct RadrootsBackgroundHTTPResult: Sendable, Equatable {
   let statusCode: Int?
   let mediaType: String?
   let body: Data?
+  let contentEncoding: String?
   let bodyExceeded: Bool
   let mediaTypeWasMalformed: Bool
 
   init(
-    statusCode: Int?, mediaType: String?, body: Data?, bodyExceeded: Bool,
+    statusCode: Int?, mediaType: String?, body: Data?, contentEncoding: String? = nil,
+    bodyExceeded: Bool,
     mediaTypeWasMalformed: Bool = false
   ) {
     self.statusCode = statusCode
     self.mediaType = mediaType
     self.body = body
+    self.contentEncoding = contentEncoding
     self.bodyExceeded = bodyExceeded
     self.mediaTypeWasMalformed = mediaTypeWasMalformed
   }
@@ -662,7 +665,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     }
     if request.responsePolicy == .discard {
       return try RadrootsBackgroundTransferResponse(
-        statusCode: statusCode, mediaType: nil, body: nil)
+        statusCode: statusCode, mediaType: nil, contentEncoding: nil, body: nil)
     }
     guard let body = httpResult.body else {
       throw RadrootsBackgroundTransferError.transferFailure("background_transfer_response_missing")
@@ -677,8 +680,13 @@ actor RadrootsAppleBackgroundTransferCoordinator {
       throw RadrootsBackgroundTransferError.transferFailure(
         "background_transfer_response_too_large")
     }
+    guard httpResult.contentEncoding == nil || httpResult.contentEncoding == "identity" else {
+      throw RadrootsBackgroundTransferError.transferFailure(
+        "background_transfer_response_content_encoding")
+    }
     return try RadrootsBackgroundTransferResponse(
-      statusCode: statusCode, mediaType: mediaType, body: body)
+      statusCode: statusCode, mediaType: mediaType,
+      contentEncoding: httpResult.contentEncoding, body: body)
   }
 
   private static func removeStagedDownload(
@@ -1076,8 +1084,11 @@ struct RadrootsBackgroundURLTaskDescriptor: Sendable, Equatable {
       let mediaType = rawMediaType.flatMap {
         try? RadrootsBackgroundTransferValidation.normalizedMediaType($0)
       }
+      let contentEncoding = response.value(forHTTPHeaderField: "Content-Encoding")?
+        .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
       return RadrootsBackgroundHTTPResult(
-        statusCode: response.statusCode, mediaType: mediaType, body: body, bodyExceeded: exceeded,
+        statusCode: response.statusCode, mediaType: mediaType, body: body,
+        contentEncoding: contentEncoding, bodyExceeded: exceeded,
         mediaTypeWasMalformed: rawMediaType != nil && mediaType == nil)
     }
 

@@ -361,7 +361,7 @@ import Testing
     responsePolicy: .boundedJSON(maximumBodyBytes: 1024)
   )
   let response = try RadrootsBackgroundTransferResponse(
-    statusCode: 200, mediaType: "application/json", body: body)
+    statusCode: 200, mediaType: "application/json", contentEncoding: "identity", body: body)
   try await store.saveSnapshot(
     RadrootsBackgroundTransferSnapshot(request: request, state: .completed, response: response))
 
@@ -369,6 +369,7 @@ import Testing
     try await RadrootsAppleBackgroundTransferStore(roots: roots).loadSnapshots().first)
   #expect(recovered.response?.body == body)
   #expect(recovered.response?.mediaType == "application/json")
+  #expect(recovered.response?.contentEncoding == "identity")
 }
 
 @Test func unavailableBackgroundTransferThrowsTypedErrors() async throws {
