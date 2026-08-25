@@ -3,6 +3,13 @@
 This is the README for `apple_kit` which contains `RadrootsKit`, the shared
 Swift package for native Rad Roots Apple-platform application services.
 
+## Verification
+
+Run `tools/verify-supply-chain.sh`, `swift build`, and `swift test` from a
+standalone clone. In an extbuild-enabled checkout, first run
+`cargo extbuild doctor` and route those commands through
+`cargo extbuild run --`.
+
 ## Copyright
 
 Except as otherwise noted, all files in the `apple_kit` distribution are

@@ -86,11 +86,13 @@ protocols/adapters, all relevant tests, and public routing text before editing.
 Make one coherent, reviewable target-state change at a time and preserve
 unrelated work.
 
-The standalone package lanes are `swift build` and `swift test`; run the
-smallest relevant test selection while iterating and the complete suite before
-a checkpoint. Verify `Package.swift` and `Package.resolved` still select the
-same exact dependency revision, inspect privacy-manifest changes, prove no
-forbidden root exists, run `git diff --check`, and review final status and diff.
+The standalone package lanes are `tools/verify-supply-chain.sh`, `swift build`,
+and `swift test`; run the smallest relevant selection while iterating and the
+complete suite before a checkpoint. The supply-chain gate proves the exact
+single remote dependency revision and repository license authority. Verify
+`Package.swift` and `Package.resolved` still agree, inspect privacy-manifest
+changes, prove no forbidden root exists, run `git diff --check`, and review
+final status and diff.
 
 In an extbuild-enabled checkout, run `cargo extbuild doctor` before the first
 mutating build, test, dependency, package, install, or generated-artifact
