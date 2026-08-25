@@ -5,8 +5,11 @@ Swift package for native Rad Roots Apple-platform application services.
 
 ## Verification
 
-Run `tools/verify-supply-chain.sh`, `swift build`, and `swift test` from a
-standalone clone. In an extbuild-enabled checkout, first run
+Run `tools/verify-boundaries.sh`, `tools/verify-supply-chain.sh`, `swift build`,
+and `swift test` from a standalone clone. The boundary command byte-compares
+the normalized public symbol inventory against its reviewed API baseline and
+rejects forbidden repository roots or credential material. In an
+extbuild-enabled checkout, first run
 `cargo extbuild doctor` and route those commands through
 `cargo extbuild run --`.
 
