@@ -618,17 +618,11 @@ import Testing
     else { return }
     let roots = try appleTransferRoots()
     defer { try? FileManager.default.removeItem(at: roots.dataRoot.deletingLastPathComponent()) }
-    let store = RadrootsInMemoryBackgroundTransferStore()
     let resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
-    let stagingRoot = roots.temporaryRoot.appendingPathComponent(
-      "live-urlsession", isDirectory: true)
-    let adapters = try RadrootsAppleBackgroundTransferAdapters.simulatorForegroundIntegration(
-      sessionIdentifier: "org.radroots.tests.background-transfer.\(UUID().uuidString.lowercased())",
-      store: store,
-      fileResolver: resolver,
-      downloadStagingRoot: stagingRoot
+    let transfer = try RadrootsAppleBackgroundTransfer(
+      roots: roots,
+      sessionIdentifier: "org.radroots.tests.background-transfer.\(UUID().uuidString.lowercased())"
     )
-    let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: adapters)
     let destination = RadrootsFileReference(
       scope: .cache, relativePath: "live-urlsession/package.swift")
     let request = try RadrootsBackgroundTransferRequest(

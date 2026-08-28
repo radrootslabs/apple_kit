@@ -53,10 +53,37 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
         downloadStagingRoot: downloadStagingRoot,
         now: now
       )
+      #if targetEnvironment(simulator)
+        let simulatorSession = RadrootsAppleBackgroundURLSession(
+          identifier: normalizedSessionIdentifier, store: store, fileResolver: fileResolver,
+          downloadStagingRoot: downloadStagingRoot,
+          now: now, usesForegroundSession: true
+        )
+      #endif
       return Self(
-        now: now, enqueue: { request in try await session.enqueue(request) },
-        cancel: { identifier in await session.cancel(identifier) },
-        activeTransferIdentifiers: { await session.activeTransferIdentifiers() },
+        now: now,
+        enqueue: { request in
+          #if targetEnvironment(simulator)
+            if request.networkPolicy == .simulatorLoopbackHTTP {
+              try await simulatorSession.enqueue(request)
+              return
+            }
+          #endif
+          try await session.enqueue(request)
+        },
+        cancel: { identifier in
+          #if targetEnvironment(simulator)
+            await simulatorSession.cancel(identifier)
+          #endif
+          await session.cancel(identifier)
+        },
+        activeTransferIdentifiers: {
+          var identifiers = await session.activeTransferIdentifiers()
+          #if targetEnvironment(simulator)
+            identifiers.formUnion(await simulatorSession.activeTransferIdentifiers())
+          #endif
+          return identifiers
+        },
         handleBackgroundEvents: { identifier, completionHandler in
           await session.handleBackgroundEvents(
             identifier: identifier, completionHandler: completionHandler)
@@ -66,30 +93,6 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
       return .unavailable
     #endif
   }
-
-  #if os(iOS) && targetEnvironment(simulator)
-    static func simulatorForegroundIntegration(
-      sessionIdentifier: String, store: any RadrootsBackgroundTransferStore,
-      fileResolver: any RadrootsBackgroundTransferFileResolver,
-      downloadStagingRoot: URL, now: @escaping @Sendable () -> Date = Date.init
-    ) throws -> Self {
-      let normalizedSessionIdentifier =
-        try RadrootsBackgroundTransferValidation.normalizedIdentifier(sessionIdentifier)
-      let session = RadrootsAppleBackgroundURLSession(
-        identifier: normalizedSessionIdentifier, store: store, fileResolver: fileResolver,
-        downloadStagingRoot: downloadStagingRoot, now: now, usesForegroundSession: true
-      )
-      return Self(
-        now: now, enqueue: { request in try await session.enqueue(request) },
-        cancel: { identifier in await session.cancel(identifier) },
-        activeTransferIdentifiers: { await session.activeTransferIdentifiers() },
-        handleBackgroundEvents: { identifier, completionHandler in
-          await session.handleBackgroundEvents(
-            identifier: identifier, completionHandler: completionHandler)
-        }
-      )
-    }
-  #endif
 }
 
 public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
