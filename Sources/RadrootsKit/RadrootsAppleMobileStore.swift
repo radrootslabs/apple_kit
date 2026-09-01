@@ -52,7 +52,7 @@ public enum RadrootsAppleMobileStore {
             throw RadrootsAppleMobileStoreError.invalidPublicKey
         }
 
-        let applicationSupportDirectory = roots.dataRoot.standardizedFileURL
+        let applicationSupportDirectory = roots.dataRoot
         let productRoot =
             applicationSupportDirectory
                 .appendingPathComponent(productDirectory, isDirectory: true)

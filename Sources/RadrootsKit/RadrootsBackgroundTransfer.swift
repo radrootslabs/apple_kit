@@ -567,6 +567,7 @@ public protocol RadrootsBackgroundTransfer: Sendable {
 
 public protocol RadrootsBackgroundTransferFileResolver: Sendable {
   func resolve(_ file: RadrootsBackgroundTransferLocalFile) throws -> URL
+  func read(_ file: RadrootsBackgroundTransferLocalFile, maximumBytes: Int) throws -> Data
 }
 
 public struct RadrootsAppleBackgroundTransferFileResolver: RadrootsBackgroundTransferFileResolver,
@@ -597,9 +598,48 @@ public struct RadrootsAppleBackgroundTransferFileResolver: RadrootsBackgroundTra
     }
     return candidate
   }
+
+  public func read(_ file: RadrootsBackgroundTransferLocalFile, maximumBytes: Int) throws -> Data {
+    guard maximumBytes >= 0 else {
+      throw RadrootsBackgroundTransferError.invalidRequest(
+        "background transfer local file byte limit is invalid")
+    }
+    let root: URL
+    let relativePath: String
+    let expectedBytes: Int?
+    switch file {
+    case .file(let reference):
+      root = roots.root(for: reference.scope)
+      relativePath = reference.relativePath
+      expectedBytes = nil
+    case .stagedBlob(let blob):
+      root = roots.stagedBlobsRoot
+      relativePath = blob.blobID
+      expectedBytes = blob.sizeBytes
+    }
+    do {
+      let data = try RadrootsGovernedFileReader.read(
+        root: root,
+        relativePath: relativePath,
+        maximumBytes: maximumBytes
+      )
+      guard expectedBytes == nil || expectedBytes == data.count else {
+        throw RadrootsBackgroundTransferError.invalidRequest(
+          "background transfer local file size does not match its handle")
+      }
+      return data
+    } catch let error as RadrootsBackgroundTransferError {
+      throw error
+    } catch {
+      throw RadrootsBackgroundTransferError.invalidRequest(
+        "background transfer local file failed governed admission")
+    }
+  }
 }
 
 public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferStore {
+  private static let maximumPersistenceBytes = 1024 * 1024
+
   private struct Envelope: Codable {
     let schemaVersion: Int
     let snapshots: [RadrootsBackgroundTransferSnapshot]
@@ -633,18 +673,19 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
     do {
       let url = try storeURL()
       let legacyURL = try legacyStoreURL()
-      let sourceURL: URL
       let isLegacy: Bool
       if fileManager.fileExists(atPath: url.path) {
-        sourceURL = url
         isLegacy = false
       } else if fileManager.fileExists(atPath: legacyURL.path) {
-        sourceURL = legacyURL
         isLegacy = true
       } else {
         return []
       }
-      let data = try Data(contentsOf: sourceURL)
+      let data = try RadrootsGovernedFileReader.read(
+        root: roots.root(for: isLegacy ? .cache : .data),
+        relativePath: "background_transfers/transfers.json",
+        maximumBytes: Self.maximumPersistenceBytes
+      )
       let decoded: [RadrootsBackgroundTransferSnapshot]
       let usedLegacyEncoding: Bool
       if let envelope = try? decoder.decode(Envelope.self, from: data) {
@@ -716,6 +757,10 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
     try fileManager.createDirectory(
       at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let data = try encoder.encode(Envelope(snapshots: snapshots))
+    guard data.count <= Self.maximumPersistenceBytes else {
+      throw RadrootsBackgroundTransferError.persistenceFailure(
+        "background transfer persistence exceeds its byte limit")
+    }
     try data.write(to: url, options: [.atomic])
     #if os(iOS)
       try fileManager.setAttributes(

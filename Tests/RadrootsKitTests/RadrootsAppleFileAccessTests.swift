@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 @testable import RadrootsKit
 import Testing
@@ -9,7 +10,7 @@ import Testing
 
     try access.write(.inline(data), to: file)
 
-    #expect(try access.read(file, mode: .inline) == .inline(data))
+    #expect(try access.read(file, mode: .inline(maxBytes: data.count)) == .inline(data))
     let entries = try access.list(RadrootsFileReference(scope: .data, relativePath: "identity"))
     #expect(entries.map(\.file.relativePath) == ["identity/public.json"])
     #expect(entries.first?.name == "public.json")
@@ -31,7 +32,7 @@ import Testing
     try access.write(.stagedBlob(staged), to: file)
     try access.releaseStagedBlob(staged)
 
-    #expect(try access.read(file, mode: .inline) == .inline(data))
+    #expect(try access.read(file, mode: .inline(maxBytes: data.count)) == .inline(data))
     #expect(throws: RadrootsAppleFileError.self) {
         _ = try access.readStagedBlob(staged)
     }
@@ -97,7 +98,10 @@ import Testing
     #expect(imported.suggestedFilename == "relays.json")
     #expect(imported.mediaType == "application/json")
     #expect(imported.sizeBytes == UInt64(Data(#"{"relays":[]}"#.utf8).count))
-    #expect(try access.read(destination, mode: .inline) == .inline(Data(#"{"relays":[]}"#.utf8)))
+    #expect(
+        try access.read(destination, mode: .inline(maxBytes: Data(#"{"relays":[]}"#.utf8).count))
+            == .inline(Data(#"{"relays":[]}"#.utf8))
+    )
 }
 
 @Test func appleFileAccessPreparesAndReleasesExportDocuments() throws {
@@ -168,7 +172,10 @@ import Testing
         _ = try access.stageBlob(Data("bad".utf8), mediaType: "text/plain", filenameHint: "../secret.txt")
     }
     #expect(throws: RadrootsAppleFileError.self) {
-        _ = try access.read(RadrootsFileReference(scope: .data, relativePath: "missing.json"), mode: .inline)
+        _ = try access.read(
+            RadrootsFileReference(scope: .data, relativePath: "missing.json"),
+            mode: .inline(maxBytes: 1)
+        )
     }
     #expect(throws: RadrootsAppleFileError.self) {
         _ = try access.stageExternalFile(#require(URL(string: "https://radroots.org/file.json")), mediaType: nil, filenameHint: nil)
@@ -218,7 +225,10 @@ import Testing
     try access.reset(scope: .data)
 
     #expect(try access.list(RadrootsFileReference(scope: .data, relativePath: "")).isEmpty)
-    #expect(try access.read(cacheFile, mode: .inline) == .inline(Data("cache".utf8)))
+    #expect(
+        try access.read(cacheFile, mode: .inline(maxBytes: Data("cache".utf8).count))
+            == .inline(Data("cache".utf8))
+    )
 
     try access.resetStagedBlobs()
 
@@ -227,9 +237,61 @@ import Testing
     }
 }
 
+@Test func appleFileAccessRejectsUnboundedAndUnsafeGovernedReads() throws {
+    let access = try testFileAccess()
+    let file = RadrootsFileReference(scope: .data, relativePath: "governed/source.txt")
+    let data = Data("bounded".utf8)
+    try access.write(.inline(data), to: file)
+
+    #expect(throws: RadrootsAppleFileError.self) {
+        _ = try access.read(file, mode: .inline(maxBytes: -1))
+    }
+    #expect(throws: RadrootsAppleFileError.self) {
+        _ = try access.read(file, mode: .inline(maxBytes: data.count - 1))
+    }
+
+    let dataRoot = access.roots.dataRoot
+    let outside = dataRoot.deletingLastPathComponent().appendingPathComponent("outside", isDirectory: true)
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    try data.write(to: outside.appendingPathComponent("source.txt"))
+    let link = dataRoot.appendingPathComponent("linked", isDirectory: true)
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+    #expect(throws: RadrootsAppleFileError.self) {
+        _ = try access.read(
+            RadrootsFileReference(scope: .data, relativePath: "linked/source.txt"),
+            mode: .inline(maxBytes: data.count)
+        )
+    }
+
+    let fifo = dataRoot.appendingPathComponent("governed/source.fifo")
+    #expect(Darwin.mkfifo(fifo.path, 0o600) == 0)
+    #expect(throws: RadrootsAppleFileError.self) {
+        _ = try access.read(
+            RadrootsFileReference(scope: .data, relativePath: "governed/source.fifo"),
+            mode: .inline(maxBytes: data.count)
+        )
+    }
+}
+
+@Test func appleFileAccessRejectsAReplacedStagedBlob() throws {
+    let access = try testFileAccess()
+    let data = Data("staged".utf8)
+    let staged = try access.stageBlob(data, mediaType: "text/plain", filenameHint: "staged.txt")
+    let stagedURL = access.roots.stagedBlobsRoot.appendingPathComponent(staged.blobID)
+    let replacement = stagedURL.appendingPathExtension("replacement")
+    try FileManager.default.moveItem(at: stagedURL, to: replacement)
+    try FileManager.default.createSymbolicLink(at: stagedURL, withDestinationURL: replacement)
+
+    #expect(throws: RadrootsAppleFileError.self) {
+        _ = try access.readStagedBlob(staged)
+    }
+}
+
 private func testFileAccess() throws -> RadrootsAppleFileAccess {
-    let root = FileManager.default.temporaryDirectory
+    let unresolvedRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("radroots-file-access-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: true)
+    let root = try canonicalTestDirectory(unresolvedRoot)
     let roots = try RadrootsAppleFileRoots(
         appIdentifier: "org.radroots.tests",
         dataRoot: root.appendingPathComponent("data", isDirectory: true),
@@ -237,6 +299,12 @@ private func testFileAccess() throws -> RadrootsAppleFileAccess {
         temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true)
     )
     return RadrootsAppleFileAccess(roots: roots)
+}
+
+private func canonicalTestDirectory(_ directory: URL) throws -> URL {
+    let pointer = try #require(directory.path.withCString { Darwin.realpath($0, nil) })
+    defer { Darwin.free(pointer) }
+    return URL(fileURLWithPath: String(cString: pointer), isDirectory: true)
 }
 
 private func writeExternalTestFile(name: String, data: Data) throws -> URL {

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Darwin
 import Foundation
 import ImageIO
 @testable import RadrootsKit
@@ -99,9 +100,13 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
 }
 
 private func mediaPreparationRoots() throws -> RadrootsAppleFileRoots {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+    let unresolvedRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
         "radroots-media-preparation-\(UUID().uuidString)", isDirectory: true
     )
+    try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: true)
+    let pointer = try #require(unresolvedRoot.path.withCString { Darwin.realpath($0, nil) })
+    defer { Darwin.free(pointer) }
+    let root = URL(fileURLWithPath: String(cString: pointer), isDirectory: true)
     return try RadrootsAppleFileRoots(
         appIdentifier: "org.radroots.tests", dataRoot: root.appendingPathComponent("data", isDirectory: true),
         cacheRoot: root.appendingPathComponent("cache", isDirectory: true),

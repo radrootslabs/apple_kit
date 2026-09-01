@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 
@@ -250,6 +251,26 @@ import Testing
       atPath: roots.dataRoot.appendingPathComponent("background_transfers/transfers.json").path))
 }
 
+@Test func appleBackgroundTransferStoreRejectsOversizedAndNonRegularPersistence() async throws {
+  let roots = try testBackgroundTransferRoots()
+  let persistedURL = roots.dataRoot.appendingPathComponent(
+    "background_transfers/transfers.json")
+  try FileManager.default.createDirectory(
+    at: persistedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+  try Data(repeating: 0x41, count: 1024 * 1024 + 1).write(to: persistedURL)
+  let store = RadrootsAppleBackgroundTransferStore(roots: roots)
+
+  await #expect(throws: RadrootsBackgroundTransferError.self) {
+    _ = try await store.loadSnapshots()
+  }
+
+  try FileManager.default.removeItem(at: persistedURL)
+  #expect(persistedURL.path.withCString { Darwin.mkfifo($0, S_IRUSR | S_IWUSR) } == 0)
+  await #expect(throws: RadrootsBackgroundTransferError.self) {
+    _ = try await store.loadSnapshots()
+  }
+}
+
 @Test func appleBackgroundTransferStoreFailsClosedWhileProtectedDataIsLocked() async throws {
   let roots = try testBackgroundTransferRoots()
   let store = RadrootsAppleBackgroundTransferStore(
@@ -278,6 +299,12 @@ import Testing
       == roots.stagedBlobsRoot.appendingPathComponent("blob-1").standardizedFileURL)
 
   try FileManager.default.createDirectory(at: roots.dataRoot, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(
+    at: roots.dataRoot.appendingPathComponent("exports", isDirectory: true),
+    withIntermediateDirectories: false)
+  try Data("governed".utf8).write(
+    to: roots.dataRoot.appendingPathComponent("exports/diagnostics.json"))
+  #expect(try resolver.read(file, maximumBytes: 64) == Data("governed".utf8))
   let outside = roots.dataRoot.deletingLastPathComponent().appendingPathComponent("outside.bin")
   try Data("outside".utf8).write(to: outside)
   let symlink = roots.dataRoot.appendingPathComponent("escape.bin")
@@ -287,6 +314,11 @@ import Testing
       "background transfer local file resolved outside its root")
   ) {
     _ = try resolver.resolve(.file(RadrootsFileReference(scope: .data, relativePath: "escape.bin")))
+  }
+  #expect(throws: RadrootsBackgroundTransferError.self) {
+    _ = try resolver.read(
+      .file(RadrootsFileReference(scope: .data, relativePath: "escape.bin")),
+      maximumBytes: 64)
   }
 
   #expect(throws: RadrootsAppleFileError.invalidRequest("file relative path must not be absolute"))
@@ -410,9 +442,16 @@ private func testDownloadRequest(identifier: String) throws -> RadrootsBackgroun
 }
 
 private func testBackgroundTransferRoots() throws -> RadrootsAppleFileRoots {
-  let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+  let unresolvedRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
     "radroots-background-transfer-\(UUID().uuidString)", isDirectory: true
   )
+  try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: false)
+  guard let resolvedPointer = unresolvedRoot.path.withCString({ Darwin.realpath($0, nil) }) else {
+    throw RadrootsBackgroundTransferError.persistenceFailure(
+      "background transfer test root is unavailable")
+  }
+  defer { Darwin.free(resolvedPointer) }
+  let root = URL(fileURLWithPath: String(cString: resolvedPointer), isDirectory: true)
   return try RadrootsAppleFileRoots(
     appIdentifier: "org.radroots.tests",
     dataRoot: root.appendingPathComponent("data", isDirectory: true),

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 
@@ -21,9 +22,9 @@ private let verifiedArtifactPublicKey =
 
   let artifact = try fixture.access.open(descriptor)
 
-  #expect(try Data(contentsOf: artifact.fileURL) == data)
+  #expect(artifact.data == data)
   #expect(try fixture.access.revalidate(artifact))
-  #expect(!artifact.debugDescription.contains(artifact.fileURL.path))
+  #expect(!artifact.debugDescription.contains(String(decoding: data, as: UTF8.self)))
 }
 
 @Test func verifiedArtifactAccessFailsClosedForLockMissingTamperAndSymlink() throws {
@@ -109,9 +110,14 @@ private struct VerifiedArtifactFixture {
   let access: RadrootsAppleVerifiedArtifactAccess
 
   init() throws {
-    root = FileManager.default.temporaryDirectory
+    let unresolvedRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("radroots-verified-artifact-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: false)
+    guard let resolvedPointer = unresolvedRoot.path.withCString({ Darwin.realpath($0, nil) }) else {
+      throw RadrootsVerifiedArtifactAccessError.fileSystemFailure
+    }
+    defer { Darwin.free(resolvedPointer) }
+    root = URL(fileURLWithPath: String(cString: resolvedPointer), isDirectory: true)
     let roots = try RadrootsAppleFileRoots(
       appIdentifier: "org.radroots.tests",
       dataRoot: root.appendingPathComponent("data", isDirectory: true),

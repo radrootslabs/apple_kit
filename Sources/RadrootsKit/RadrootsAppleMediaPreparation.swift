@@ -87,12 +87,16 @@ public actor RadrootsAppleMediaPreparer {
     private func prepareValidatedImage(_ request: RadrootsAppleImagePreparationRequest) async throws -> RadrootsApplePreparedImage {
         try Task.checkCancellation()
         try requireProtectedData()
-        let sourceURL = try resolver.resolve(request.source)
-        let sourceValues = try sourceURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
-        guard sourceValues.isRegularFile == true, sourceValues.isSymbolicLink != true, let inputBytes = sourceValues.fileSize,
-              inputBytes > 0, inputBytes <= request.maximumInputBytes
-        else { throw RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit") }
-        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+        let sourceData: Data
+        do {
+            sourceData = try resolver.read(request.source, maximumBytes: request.maximumInputBytes)
+        } catch {
+            throw RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit")
+        }
+        guard !sourceData.isEmpty else {
+            throw RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit")
+        }
+        guard let source = CGImageSourceCreateWithData(sourceData as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
               CGImageSourceGetCount(source) == 1
         else { throw RadrootsAppleMediaPreparationError.invalidRequest("image source must contain exactly one decodable image") }
         let dimensions = try Self.sourceDimensions(source)
@@ -166,9 +170,11 @@ public actor RadrootsAppleMediaPreparer {
         identifier: RadrootsBackgroundTransferIdentifier = .generated()
     ) throws -> RadrootsBackgroundTransferRequest {
         do {
-            let fileURL = try roots.stagedBlobURL(for: preparedImage.file)
-            guard try Self.fileSize(at: fileURL) == preparedImage.file.sizeBytes,
-                  try RadrootsAppleFileDigest.sha256(at: fileURL) == preparedImage.sha256
+            let preparedData = try resolver.read(
+                .stagedBlob(preparedImage.file), maximumBytes: preparedImage.file.sizeBytes
+            )
+            guard preparedData.count == preparedImage.file.sizeBytes,
+                  RadrootsAppleFileDigest.sha256(preparedData) == preparedImage.sha256
             else { throw RadrootsAppleMediaPreparationError.invalidRequest("prepared image no longer matches its commitment") }
             return try RadrootsBackgroundTransferRequest(
                 identifier: identifier, remoteURL: remoteURL, method: .put, operation: .upload(source: .stagedBlob(preparedImage.file)),
@@ -204,6 +210,10 @@ public actor RadrootsAppleMediaPreparer {
 }
 
 enum RadrootsAppleFileDigest {
+    static func sha256(_ data: Data) -> String {
+        CryptoKit.SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
     static func sha256(at url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }

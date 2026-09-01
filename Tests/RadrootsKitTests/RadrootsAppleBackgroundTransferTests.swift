@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import RadrootsKitTesting
 import Testing
@@ -816,9 +817,16 @@ private func successfulHTTPResult() -> RadrootsBackgroundHTTPResult {
 }
 
 private func appleTransferRoots() throws -> RadrootsAppleFileRoots {
-  let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+  let unresolvedRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
     "radroots-apple-background-transfer-\(UUID().uuidString)", isDirectory: true
   )
+  try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: false)
+  guard let resolvedPointer = unresolvedRoot.path.withCString({ Darwin.realpath($0, nil) }) else {
+    throw RadrootsBackgroundTransferError.persistenceFailure(
+      "background transfer test root is unavailable")
+  }
+  defer { Darwin.free(resolvedPointer) }
+  let root = URL(fileURLWithPath: String(cString: resolvedPointer), isDirectory: true)
   return try RadrootsAppleFileRoots(
     appIdentifier: "org.radroots.tests",
     dataRoot: root.appendingPathComponent("data", isDirectory: true),

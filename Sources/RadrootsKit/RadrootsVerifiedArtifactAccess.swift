@@ -64,24 +64,24 @@ public struct RadrootsVerifiedArtifactDescriptor: Sendable, Equatable, Hashable 
 
 public struct RadrootsVerifiedArtifactFile: Sendable, Equatable, CustomDebugStringConvertible {
   public let descriptor: RadrootsVerifiedArtifactDescriptor
-  public let fileURL: URL
+  public let data: Data
 
-  fileprivate init(descriptor: RadrootsVerifiedArtifactDescriptor, fileURL: URL) {
+  fileprivate init(descriptor: RadrootsVerifiedArtifactDescriptor, data: Data) {
     self.descriptor = descriptor
-    self.fileURL = fileURL
+    self.data = data
   }
 
   public var debugDescription: String {
-    "RadrootsVerifiedArtifactFile(artifactID: \(descriptor.artifactID), byteSize: \(descriptor.byteSize), mediaType: \(descriptor.mediaType), fileURL: <redacted>)"
+    "RadrootsVerifiedArtifactFile(artifactID: \(descriptor.artifactID), byteSize: \(descriptor.byteSize), mediaType: \(descriptor.mediaType), data: <redacted>)"
   }
 }
 
 /// Opens only Rust-approved, content-addressed inbound media artifacts.
 ///
 /// Rust remains the verification and cache authority. This Apple adapter
-/// independently rechecks the immutable file immediately before handing its
-/// local URL to a native renderer and refuses access while protected data is
-/// unavailable.
+/// independently rechecks the immutable file and returns only its retained,
+/// verified bytes to a native renderer. It refuses access while protected data
+/// is unavailable.
 public struct RadrootsAppleVerifiedArtifactAccess: Sendable {
   private let ownerDirectory: URL
   private let protectedData: RadrootsProtectedDataProvider
@@ -90,7 +90,7 @@ public struct RadrootsAppleVerifiedArtifactAccess: Sendable {
     mobileStore: RadrootsAppleMobileStoreConfiguration,
     protectedData: RadrootsProtectedDataProvider = .available
   ) {
-    ownerDirectory = mobileStore.ownerDirectory.standardizedFileURL
+    ownerDirectory = mobileStore.ownerDirectory
     self.protectedData = protectedData
   }
 
@@ -100,49 +100,25 @@ public struct RadrootsAppleVerifiedArtifactAccess: Sendable {
     guard protectedData.currentState() == .available else {
       throw RadrootsVerifiedArtifactAccessError.protectedDataUnavailable
     }
-    let cacheDirectory =
-      ownerDirectory
-      .appendingPathComponent("inbound_media.v1", isDirectory: true)
-      .standardizedFileURL
-    let candidate =
-      cacheDirectory
-      .appendingPathComponent(descriptor.filename, isDirectory: false)
-      .standardizedFileURL
-    guard candidate.deletingLastPathComponent() == cacheDirectory else {
-      throw RadrootsVerifiedArtifactAccessError.invalidDescriptor
-    }
-
     do {
-      try Self.requireOrdinaryDirectory(ownerDirectory)
-      try Self.requireOrdinaryDirectory(cacheDirectory)
-      guard FileManager.default.fileExists(atPath: candidate.path) else {
-        throw RadrootsVerifiedArtifactAccessError.artifactUnavailable
-      }
-      let values = try candidate.resourceValues(forKeys: [
-        .isRegularFileKey,
-        .isSymbolicLinkKey,
-        .fileSizeKey,
-      ])
-      guard values.isRegularFile == true,
-        values.isSymbolicLink != true,
-        values.fileSize.flatMap(UInt64.init) == descriptor.byteSize
-      else {
+      let data = try RadrootsGovernedFileReader.read(
+        root: ownerDirectory,
+        relativePath: "inbound_media.v1/\(descriptor.filename)",
+        maximumBytes: Int(descriptor.byteSize)
+      )
+      guard UInt64(data.count) == descriptor.byteSize else {
         throw RadrootsVerifiedArtifactAccessError.artifactCorrupt
       }
-      guard try RadrootsAppleFileDigest.sha256(at: candidate) == descriptor.artifactID else {
+      guard RadrootsAppleFileDigest.sha256(data) == descriptor.artifactID else {
         throw RadrootsVerifiedArtifactAccessError.artifactCorrupt
       }
-      #if os(iOS)
-        try FileManager.default.setAttributes(
-          [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-          ofItemAtPath: candidate.path
-        )
-      #endif
-      return RadrootsVerifiedArtifactFile(descriptor: descriptor, fileURL: candidate)
+      return RadrootsVerifiedArtifactFile(descriptor: descriptor, data: data)
     } catch let error as RadrootsVerifiedArtifactAccessError {
       throw error
-    } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+    } catch RadrootsGovernedFileReadError.unavailable {
       throw RadrootsVerifiedArtifactAccessError.artifactUnavailable
+    } catch is RadrootsGovernedFileReadError {
+      throw RadrootsVerifiedArtifactAccessError.artifactCorrupt
     } catch {
       throw RadrootsVerifiedArtifactAccessError.fileSystemFailure
     }
@@ -150,12 +126,5 @@ public struct RadrootsAppleVerifiedArtifactAccess: Sendable {
 
   public func revalidate(_ artifact: RadrootsVerifiedArtifactFile) throws -> Bool {
     try open(artifact.descriptor) == artifact
-  }
-
-  private static func requireOrdinaryDirectory(_ directory: URL) throws {
-    let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-    guard values.isDirectory == true, values.isSymbolicLink != true else {
-      throw RadrootsVerifiedArtifactAccessError.artifactCorrupt
-    }
   }
 }

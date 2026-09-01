@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 @testable import RadrootsKit
 import Testing
@@ -167,8 +168,12 @@ import UniformTypeIdentifiers
 }
 
 private func testDocumentPresentationFileAccess() throws -> RadrootsAppleFileAccess {
-    let root = FileManager.default.temporaryDirectory
+    let unresolvedRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("radroots-document-presentation-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: true)
+    let pointer = try #require(unresolvedRoot.path.withCString { Darwin.realpath($0, nil) })
+    defer { Darwin.free(pointer) }
+    let root = URL(fileURLWithPath: String(cString: pointer), isDirectory: true)
     let roots = try RadrootsAppleFileRoots(
         appIdentifier: "org.radroots.document-presentation.tests",
         dataRoot: root.appendingPathComponent("data", isDirectory: true),

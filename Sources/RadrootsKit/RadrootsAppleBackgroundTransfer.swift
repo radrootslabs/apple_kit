@@ -783,25 +783,12 @@ struct RadrootsBackgroundURLTaskDescriptor: Sendable, Equatable {
       case .download: task = session.downloadTask(with: urlRequest)
       case .upload(let source):
         let sourceURL = try fileResolver.resolve(source)
-        let values = try sourceURL.resourceValues(forKeys: [
-          .fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey,
-        ])
-        guard values.isRegularFile == true, values.isSymbolicLink != true else {
-          throw RadrootsBackgroundTransferError.invalidRequest(
-            "background upload source must be a regular file")
-        }
-        guard let fileSize = values.fileSize, fileSize >= 0,
-          UInt64(fileSize) <= request.maximumTransferBytes
-        else {
-          throw RadrootsBackgroundTransferError.invalidRequest(
-            "background upload source exceeds its byte limit")
-        }
-        if case .stagedBlob(let blob) = source, values.fileSize != blob.sizeBytes {
-          throw RadrootsBackgroundTransferError.invalidRequest(
-            "background upload source size does not match its handle")
-        }
+        let sourceData = try fileResolver.read(
+          source,
+          maximumBytes: Int(request.maximumTransferBytes)
+        )
         if let expectedDigest = request.expectedSourceSHA256,
-          try RadrootsAppleFileDigest.sha256(at: sourceURL) != expectedDigest
+          RadrootsAppleFileDigest.sha256(sourceData) != expectedDigest
         {
           throw RadrootsBackgroundTransferError.invalidRequest(
             "background upload source does not match its digest")

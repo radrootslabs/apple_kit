@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public enum RadrootsFileScope: Sendable, Equatable, CaseIterable, Codable {
@@ -108,7 +109,7 @@ public enum RadrootsFilePayload: Sendable, Equatable {
 }
 
 public enum RadrootsFileReadMode: Sendable, Equatable {
-    case inline
+    case inline(maxBytes: Int)
     case preferInline(maxBytes: Int)
     case stagedBlob
 }
@@ -143,6 +144,8 @@ public protocol RadrootsFileAccess {
 }
 
 public final class RadrootsAppleFileAccess: RadrootsFileAccess {
+    private static let maximumGovernedFileBytes = 512 * 1024 * 1024
+
     public let roots: RadrootsAppleFileRoots
     private let fileManager: FileManager
 
@@ -158,29 +161,26 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         case let .inline(inlineData):
             try inlineData.write(to: url, options: [.atomic])
         case let .stagedBlob(stagedBlob):
-            try copyReplacingItem(from: stagedBlobURL(for: stagedBlob), to: url)
+            try readStagedBlob(stagedBlob).write(to: url, options: [.atomic])
         }
     }
 
     public func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws -> RadrootsFileReadResult {
-        let url = try roots.resolvedURL(for: file)
-        guard fileManager.fileExists(atPath: url.path) else {
-            throw RadrootsAppleFileError.notFound("file not found")
-        }
         switch mode {
-        case .inline:
-            return try .inline(Data(contentsOf: url))
+        case let .inline(maxBytes):
+            return try .inline(readGovernedFile(file, maximumBytes: maxBytes))
         case let .preferInline(maxBytes):
-            guard maxBytes >= 0 else {
-                throw RadrootsAppleFileError.invalidRequest("inline byte limit cannot be negative")
+            do {
+                return try .inline(
+                    readGovernedFile(file, maximumBytes: maxBytes, preserveTooLarge: true)
+                )
+            } catch RadrootsGovernedFileReadError.tooLarge {
+                let url = try roots.resolvedURL(for: file)
+                let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
+                return .stagedBlob(staged)
             }
-            let size = try fileSize(at: url)
-            if size <= maxBytes {
-                return try .inline(Data(contentsOf: url))
-            }
-            let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
-            return .stagedBlob(staged)
         case .stagedBlob:
+            let url = try roots.resolvedURL(for: file)
             let staged = try stageFile(file, mediaType: nil, filenameHint: url.lastPathComponent)
             return .stagedBlob(staged)
         }
@@ -239,6 +239,9 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         mediaType: String? = nil,
         filenameHint: String? = nil
     ) throws -> RadrootsStagedBlobReference {
+        guard data.count <= Self.maximumGovernedFileBytes else {
+            throw RadrootsAppleFileError.invalidRequest("staged blob exceeds the governed byte limit")
+        }
         let blobID = UUID().uuidString.lowercased()
         let blob = try RadrootsStagedBlobReference(
             blobID: blobID,
@@ -259,11 +262,8 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         filenameHint: String? = nil
     ) throws -> RadrootsStagedBlobReference {
         let sourceURL = try roots.resolvedURL(for: file)
-        guard fileManager.fileExists(atPath: sourceURL.path) else {
-            throw RadrootsAppleFileError.notFound("file not found")
-        }
-        return try stageFileURL(
-            sourceURL,
+        return try stageBlob(
+            readGovernedFile(file, maximumBytes: Self.maximumGovernedFileBytes),
             mediaType: mediaType,
             filenameHint: filenameHint ?? sourceURL.lastPathComponent
         )
@@ -316,9 +316,10 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         case let .inlineData(data):
             try data.write(to: fileURL, options: [.atomic])
         case let .file(file):
-            try copyReplacingItem(from: roots.resolvedURL(for: file), to: fileURL)
+            try readGovernedFile(file, maximumBytes: Self.maximumGovernedFileBytes)
+                .write(to: fileURL, options: [.atomic])
         case let .stagedBlob(stagedBlob):
-            try copyReplacingItem(from: stagedBlobURL(for: stagedBlob), to: fileURL)
+            try readStagedBlob(stagedBlob).write(to: fileURL, options: [.atomic])
         }
         let sizeBytes: UInt64 = if let requestSizeBytes = request.sizeBytes {
             requestSizeBytes
@@ -335,11 +336,19 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     public func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data {
-        let url = try stagedBlobURL(for: blob)
-        guard fileManager.fileExists(atPath: url.path) else {
-            throw RadrootsAppleFileError.notFound("staged blob not found")
+        guard (0 ... Self.maximumGovernedFileBytes).contains(blob.sizeBytes) else {
+            throw RadrootsAppleFileError.invalidRequest("staged blob byte size is invalid")
         }
-        let data = try Data(contentsOf: url)
+        let data: Data
+        do {
+            data = try RadrootsGovernedFileReader.read(
+                root: roots.stagedBlobsRoot,
+                relativePath: blob.blobID,
+                maximumBytes: blob.sizeBytes
+            )
+        } catch let error as RadrootsGovernedFileReadError {
+            throw mappedGovernedReadError(error)
+        }
         guard data.count == blob.sizeBytes else {
             throw RadrootsAppleFileError.permanentFailure("staged blob size does not match reference")
         }
@@ -434,6 +443,9 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         filenameHint: String?
     ) throws -> RadrootsStagedBlobReference {
         let sizeBytes = try fileSizeInt(at: sourceURL)
+        guard sizeBytes <= Self.maximumGovernedFileBytes else {
+            throw RadrootsAppleFileError.permanentFailure("file exceeds the governed byte limit")
+        }
         let blobID = UUID().uuidString.lowercased()
         let blob = try RadrootsStagedBlobReference(
             blobID: blobID,
@@ -499,6 +511,44 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         try UInt64(fileSizeInt(at: url))
     }
 
+    private func readGovernedFile(
+        _ file: RadrootsFileReference,
+        maximumBytes: Int,
+        preserveTooLarge: Bool = false
+    ) throws -> Data {
+        guard (0 ... Self.maximumGovernedFileBytes).contains(maximumBytes) else {
+            throw RadrootsAppleFileError.invalidRequest("inline byte limit is invalid")
+        }
+        let root = roots.root(for: file.scope)
+        let resolved = try roots.resolvedURL(for: file)
+        let relative = try relativePath(for: resolved, under: root)
+        do {
+            return try RadrootsGovernedFileReader.read(
+                root: root,
+                relativePath: relative,
+                maximumBytes: maximumBytes
+            )
+        } catch let error as RadrootsGovernedFileReadError {
+            if preserveTooLarge, error == .tooLarge {
+                throw error
+            }
+            throw mappedGovernedReadError(error)
+        }
+    }
+
+    private func mappedGovernedReadError(_ error: RadrootsGovernedFileReadError) -> RadrootsAppleFileError {
+        switch error {
+        case .unavailable:
+            .notFound("file not found")
+        case .invalidRequest:
+            .invalidRequest("file request is invalid")
+        case .tooLarge:
+            .permanentFailure("file exceeds the governed byte limit")
+        case .invalidObject, .changedDuringRead, .ioFailure:
+            .permanentFailure("file failed governed admission")
+        }
+    }
+
     private func relativePath(for url: URL, under rootURL: URL) throws -> String {
         let rootPath = rootURL.standardizedFileURL.path
         let filePath = url.standardizedFileURL.path
@@ -548,21 +598,21 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
         fileManager: FileManager = .default
     ) throws -> Self {
         let normalizedAppIdentifier = try normalizedAppIdentifier(appIdentifier)
-        let dataBaseURL = try fileManager.url(
+        let dataBaseURL = try canonicalExistingDirectory(fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        )
-        let cacheBaseURL = try fileManager.url(
+        ))
+        let cacheBaseURL = try canonicalExistingDirectory(fileManager.url(
             for: .cachesDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        )
+        ))
         let dataRoot = dataBaseURL.appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
         let cacheRoot = cacheBaseURL.appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
-        let temporaryRoot = fileManager.temporaryDirectory
+        let temporaryRoot = try canonicalExistingDirectory(fileManager.temporaryDirectory)
             .appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
         return try Self(
             appIdentifier: normalizedAppIdentifier,
@@ -636,5 +686,15 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             throw RadrootsAppleFileError.invalidRequest("\(field) must be absolute")
         }
         return standardized
+    }
+
+    private static func canonicalExistingDirectory(_ directory: URL) throws -> URL {
+        guard directory.isFileURL,
+              let pointer = directory.path.withCString({ Darwin.realpath($0, nil) })
+        else {
+            throw RadrootsAppleFileError.permanentFailure("platform file root is unavailable")
+        }
+        defer { Darwin.free(pointer) }
+        return URL(fileURLWithPath: String(cString: pointer), isDirectory: true)
     }
 }
