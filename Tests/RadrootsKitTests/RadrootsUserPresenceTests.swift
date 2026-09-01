@@ -26,7 +26,7 @@ import Testing
 }
 
 @Test func userPresenceErrorsExposeLocalizedMessages() {
-    let error = RadrootsUserPresenceError.permissionDenied("presence denied")
+    let error = RadrootsUserPresenceError.permissionDenied
 
-    #expect(error.errorDescription == "presence denied")
+    #expect(error.errorDescription == "User-presence verification was denied.")
 }

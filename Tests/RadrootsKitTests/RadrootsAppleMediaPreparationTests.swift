@@ -2,9 +2,10 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
-@testable import RadrootsKit
 import Testing
 import UniformTypeIdentifiers
+
+@testable import RadrootsKit
 
 @Test func appleMediaPreparationNormalizesAndCommitsStableFinalBytes() async throws {
     let roots = try mediaPreparationRoots()
@@ -26,7 +27,8 @@ import UniformTypeIdentifiers
     #expect(!first.debugDescription.contains(roots.temporaryRoot.path))
     let outputURL = try roots.stagedBlobURL(for: first.file)
     let outputSource = try #require(CGImageSourceCreateWithURL(outputURL as CFURL, nil))
-    let outputProperties = try #require(CGImageSourceCopyPropertiesAtIndex(outputSource, 0, nil) as? [CFString: Any])
+    let outputProperties = try #require(
+        CGImageSourceCopyPropertiesAtIndex(outputSource, 0, nil) as? [CFString: Any])
     #expect(outputProperties[kCGImagePropertyGPSDictionary] == nil)
     #expect((outputProperties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1 == 1)
 }
@@ -36,10 +38,13 @@ import UniformTypeIdentifiers
     let sourceReference = RadrootsFileReference(scope: .cache, relativePath: "capture/source.jpg")
     try writeOrientedImageWithMetadata(to: roots.resolvedURL(for: sourceReference))
     let preparer = RadrootsAppleMediaPreparer(roots: roots)
-    let prepared = try await preparer.prepareImage(RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
+    let prepared = try await preparer.prepareImage(
+        RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
 
     let request = try await preparer.blossomUploadRequest(
-        preparedImage: prepared, remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")), authorization: "Nostr signed-event",
+        preparedImage: prepared,
+        remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")),
+        authorization: "Nostr signed-event",
         identifier: RadrootsBackgroundTransferIdentifier("field.media.upload")
     )
 
@@ -55,9 +60,11 @@ import UniformTypeIdentifiers
     var tampered = try Data(contentsOf: preparedURL)
     tampered[tampered.startIndex] ^= 0x01
     try tampered.write(to: preparedURL, options: .atomic)
-    await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest("prepared image no longer matches its commitment")) {
+    await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest) {
         _ = try await preparer.blossomUploadRequest(
-            preparedImage: prepared, remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")), authorization: "Nostr signed-event"
+            preparedImage: prepared,
+            remoteURL: #require(URL(string: "https://blossom.radroots.org/upload")),
+            authorization: "Nostr signed-event"
         )
     }
 }
@@ -68,13 +75,16 @@ import UniformTypeIdentifiers
     try writeOrientedImageWithMetadata(to: roots.resolvedURL(for: sourceReference))
 
     let bounded = RadrootsAppleMediaPreparer(roots: roots)
-    await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit")) {
-        _ = try await bounded.prepareImage(RadrootsAppleImagePreparationRequest(source: .file(sourceReference), maximumInputBytes: 1))
+    await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest) {
+        _ = try await bounded.prepareImage(
+            RadrootsAppleImagePreparationRequest(source: .file(sourceReference), maximumInputBytes: 1))
     }
 
-    let locked = RadrootsAppleMediaPreparer(roots: roots, protectedData: RadrootsProtectedDataProvider { .locked })
-    await #expect(throws: RadrootsAppleMediaPreparationError.unavailable("image preparation protected data is unavailable")) {
-        _ = try await locked.prepareImage(RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
+    let locked = RadrootsAppleMediaPreparer(
+        roots: roots, protectedData: RadrootsProtectedDataProvider { .locked })
+    await #expect(throws: RadrootsAppleMediaPreparationError.unavailable) {
+        _ = try await locked.prepareImage(
+            RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
     }
 }
 
@@ -89,10 +99,13 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
     context.setFillColor(CGColor(red: 0.2, green: 0.7, blue: 0.3, alpha: 1))
     context.fill(CGRect(x: 0, y: 0, width: 2, height: 3))
     let image = try #require(context.makeImage())
-    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
+    try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let destination = try #require(
+        CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
     let properties: [CFString: Any] = [
-        kCGImagePropertyOrientation: 6, kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 45.0],
+        kCGImagePropertyOrientation: 6,
+        kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 45.0],
         kCGImageDestinationLossyCompressionQuality: 0.9,
     ]
     CGImageDestinationAddImage(destination, image, properties as CFDictionary)
@@ -108,7 +121,8 @@ private func mediaPreparationRoots() throws -> RadrootsAppleFileRoots {
     defer { Darwin.free(pointer) }
     let root = URL(fileURLWithPath: String(cString: pointer), isDirectory: true)
     return try RadrootsAppleFileRoots(
-        appIdentifier: "org.radroots.tests", dataRoot: root.appendingPathComponent("data", isDirectory: true),
+        appIdentifier: "org.radroots.tests",
+        dataRoot: root.appendingPathComponent("data", isDirectory: true),
         cacheRoot: root.appendingPathComponent("cache", isDirectory: true),
         temporaryRoot: root.appendingPathComponent("tmp", isDirectory: true)
     )

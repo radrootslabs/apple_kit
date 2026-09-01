@@ -1,6 +1,8 @@
 import Foundation
 
-public enum RadrootsExternalActionDestinationKind: String, Sendable, Equatable, Hashable, CaseIterable {
+public enum RadrootsExternalActionDestinationKind: String, Sendable, Equatable, Hashable,
+    CaseIterable
+{
     case appSettings
     case web
     case nostr
@@ -60,32 +62,28 @@ public struct RadrootsExternalActionCapability: Sendable, Equatable, Hashable {
 }
 
 public enum RadrootsExternalActionError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case blockedByPolicy(String)
-    case unavailable(String)
-    case transientFailure(String)
-    case permanentFailure(String)
+    case invalidRequest
+    case blockedByPolicy
+    case unavailable
+    case transientFailure
+    case permanentFailure
 }
 
 extension RadrootsExternalActionError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .blockedByPolicy(message):
-            message
-        case let .unavailable(message):
-            message
-        case let .transientFailure(message):
-            message
-        case let .permanentFailure(message):
-            message
+        case .invalidRequest: "The external action request is invalid."
+        case .blockedByPolicy: "The external action is blocked by policy."
+        case .unavailable: "The external action is unavailable."
+        case .transientFailure: "The external action could not be completed temporarily."
+        case .permanentFailure: "The external action could not be completed."
         }
     }
 }
 
 public protocol RadrootsExternalActions: Sendable {
-    func canOpen(_ destination: RadrootsExternalActionDestination) async -> RadrootsExternalActionCapability
+    func canOpen(_ destination: RadrootsExternalActionDestination) async
+        -> RadrootsExternalActionCapability
     func open(_ request: RadrootsExternalActionRequest) async throws
 }
 
@@ -100,7 +98,7 @@ public enum RadrootsExternalActionValidation {
               components.password == nil,
               let url = components.url
         else {
-            throw RadrootsExternalActionError.blockedByPolicy("external web urls must use https with a host")
+            throw RadrootsExternalActionError.blockedByPolicy
         }
         return url
     }
@@ -109,25 +107,25 @@ public enum RadrootsExternalActionValidation {
         let trimmed = try trimmedNonEmpty(value, field: "nostr uri")
         try rejectWhitespaceOrControl(trimmed, field: "nostr uri")
         guard trimmed.lowercased().hasPrefix("nostr:") else {
-            throw RadrootsExternalActionError.blockedByPolicy("nostr uri must use the nostr scheme")
+            throw RadrootsExternalActionError.blockedByPolicy
         }
         let payload = String(trimmed.dropFirst("nostr:".count))
         guard !payload.isEmpty else {
-            throw RadrootsExternalActionError.invalidRequest("nostr uri payload must not be empty")
+            throw RadrootsExternalActionError.invalidRequest
         }
         guard payload.range(of: "^[A-Za-z0-9]+$", options: .regularExpression) != nil else {
-            throw RadrootsExternalActionError.invalidRequest("nostr uri payload must be bech32-like public text")
+            throw RadrootsExternalActionError.invalidRequest
         }
         let normalizedPayload = payload.lowercased()
         if normalizedPayload.hasPrefix("nsec") {
-            throw RadrootsExternalActionError.blockedByPolicy("nostr secret payloads cannot be opened externally")
+            throw RadrootsExternalActionError.blockedByPolicy
         }
         let allowedPrefixes = ["npub1", "nprofile1", "note1", "nevent1", "naddr1", "nrelay1"]
         guard allowedPrefixes.contains(where: { normalizedPayload.hasPrefix($0) }) else {
-            throw RadrootsExternalActionError.blockedByPolicy("nostr uri payload must be a public Nostr identifier")
+            throw RadrootsExternalActionError.blockedByPolicy
         }
         guard let url = URL(string: "nostr:\(normalizedPayload)") else {
-            throw RadrootsExternalActionError.invalidRequest("nostr uri is not a valid url")
+            throw RadrootsExternalActionError.invalidRequest
         }
         return url
     }
@@ -142,7 +140,7 @@ public enum RadrootsExternalActionValidation {
               components.password == nil,
               let url = components.url
         else {
-            throw RadrootsExternalActionError.blockedByPolicy("apple maps urls must use https://maps.apple.com")
+            throw RadrootsExternalActionError.blockedByPolicy
         }
         return url
     }
@@ -159,7 +157,7 @@ public enum RadrootsExternalActionValidation {
             URLQueryItem(
                 name: "ll",
                 value: "\(coordinate.latitude),\(coordinate.longitude)"
-            ),
+            )
         ]
         if let label {
             let normalizedLabel = try normalizedOptionalLabel(label)
@@ -169,7 +167,7 @@ public enum RadrootsExternalActionValidation {
         }
         components.queryItems = queryItems
         guard let url = components.url else {
-            throw RadrootsExternalActionError.permanentFailure("failed to construct apple maps url")
+            throw RadrootsExternalActionError.permanentFailure
         }
         return url
     }
@@ -177,7 +175,7 @@ public enum RadrootsExternalActionValidation {
     static func trimmedNonEmpty(_ value: String, field: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsExternalActionError.invalidRequest("\(field) must not be empty")
+            throw RadrootsExternalActionError.invalidRequest
         }
         return trimmed
     }
@@ -185,7 +183,7 @@ public enum RadrootsExternalActionValidation {
     static func rejectWhitespaceOrControl(_ value: String, field: String) throws {
         let forbidden = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
         guard value.unicodeScalars.allSatisfy({ !forbidden.contains($0) }) else {
-            throw RadrootsExternalActionError.invalidRequest("\(field) cannot contain whitespace or control characters")
+            throw RadrootsExternalActionError.invalidRequest
         }
     }
 
@@ -196,7 +194,7 @@ public enum RadrootsExternalActionValidation {
         }
         let forbidden = CharacterSet.controlCharacters
         guard trimmed.unicodeScalars.allSatisfy({ !forbidden.contains($0) }) else {
-            throw RadrootsExternalActionError.invalidRequest("apple maps label cannot contain control characters")
+            throw RadrootsExternalActionError.invalidRequest
         }
         return trimmed
     }

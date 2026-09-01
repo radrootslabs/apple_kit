@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func mediaImportRequestNormalizesKindsAndSelectionLimit() throws {
     let request = try RadrootsMediaImportRequest(
@@ -15,10 +16,10 @@ import Testing
 }
 
 @Test func mediaImportRequestRejectsInvalidSelectionLimits() {
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("media import selection limit must be positive")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaImportRequest(selectionLimit: 0)
     }
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("media import selection limit cannot exceed 100")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaImportRequest(selectionLimit: 101)
     }
 }
@@ -60,7 +61,7 @@ import Testing
 }
 
 @Test func mediaAssetRejectsUnsafeMetadata() {
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("capture filename cannot contain path separators")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaAsset(
             source: .libraryImport,
             kind: .image,
@@ -71,7 +72,7 @@ import Testing
             capturedAt: Date(timeIntervalSince1970: 10)
         )
     }
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("capture media type must be type/subtype")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaAsset(
             source: .libraryImport,
             kind: .image,
@@ -82,7 +83,7 @@ import Testing
             capturedAt: Date(timeIntervalSince1970: 10)
         )
     }
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("image dimensions must include width and height together")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaAsset(
             source: .libraryImport,
             kind: .image,
@@ -101,7 +102,7 @@ import Testing
     let result = try RadrootsMediaImportResult(items: [asset])
 
     #expect(result.items == [asset])
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("media import result cannot be empty")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsMediaImportResult(items: [])
     }
 }
@@ -136,7 +137,7 @@ import Testing
 }
 
 @Test func scannedDocumentRejectsEmptyPageCount() {
-    #expect(throws: RadrootsCaptureIntakeError.invalidRequest("scanned document page count must be positive")) {
+    #expect(throws: RadrootsCaptureIntakeError.invalidRequest) {
         _ = try RadrootsScannedDocument(
             file: RadrootsFileReference(scope: .temporary, relativePath: "capture/scan.pdf"),
             outputKind: .pdf,

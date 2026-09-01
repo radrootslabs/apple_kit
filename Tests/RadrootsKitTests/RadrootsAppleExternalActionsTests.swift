@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func appleExternalActionsOpensAppSettingsThroughAdapter() async throws {
     let settingsURL = try #require(URL(string: "app-settings:radroots"))
@@ -23,7 +24,7 @@ import Testing
     let capability = await service.canOpen(.appSettings)
 
     #expect(!capability.canOpen)
-    await #expect(throws: RadrootsExternalActionError.unavailable("appSettings external action is unavailable")) {
+    await #expect(throws: RadrootsExternalActionError.unavailable) {
         try await service.open(RadrootsExternalActionRequest(destination: .appSettings))
     }
     #expect(await probe.canOpenURLs.isEmpty)
@@ -36,7 +37,7 @@ import Testing
     let probe = RadrootsExternalActionAdapterProbe(openResult: false)
     let service = RadrootsAppleExternalActions(adapters: probe.adapters())
 
-    await #expect(throws: RadrootsExternalActionError.transientFailure("failed to open web external action")) {
+    await #expect(throws: RadrootsExternalActionError.transientFailure) {
         try await service.open(RadrootsExternalActionRequest(destination: destination))
     }
 

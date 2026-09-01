@@ -48,14 +48,14 @@ import Testing
 
 @Test func fakeBackgroundTaskSchedulerCanReturnSubmitFailures() async throws {
     let scheduler = RadrootsFakeBackgroundTaskScheduler(
-        submitOutcome: .failure(.schedulerFailure("scheduler rejected request"))
+        submitOutcome: .failure(.schedulerFailure)
     )
     let request = try RadrootsBackgroundTaskRequest(
         identifier: "org.radroots.field-ios.background.refresh",
         kind: .appRefresh
     )
 
-    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure("scheduler rejected request")) {
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
         _ = try await scheduler.submit(request)
     }
     #expect(await scheduler.submittedRequests == [request])

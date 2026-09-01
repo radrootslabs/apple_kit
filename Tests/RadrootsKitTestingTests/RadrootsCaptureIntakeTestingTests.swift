@@ -41,17 +41,17 @@ import Testing
             supportedCaptureKinds: [.image],
             multipleSelectionSupported: false
         ),
-        importOutcome: .failure(.userCancelled("media import was cancelled")),
+        importOutcome: .failure(.userCancelled),
         captureOutcome: .success(RadrootsMediaCaptureResult(item: asset))
     )
 
-    await #expect(throws: RadrootsCaptureIntakeError.userCancelled("media import was cancelled")) {
+    await #expect(throws: RadrootsCaptureIntakeError.userCancelled) {
         _ = try await picker.importMedia(RadrootsMediaImportRequest())
     }
 
-    await picker.setCaptureOutcome(.failure(.permissionDenied("camera access is denied")))
+    await picker.setCaptureOutcome(.failure(.permissionDenied))
 
-    await #expect(throws: RadrootsCaptureIntakeError.permissionDenied("camera access is denied")) {
+    await #expect(throws: RadrootsCaptureIntakeError.permissionDenied) {
         _ = try await picker.captureMedia(RadrootsMediaCaptureRequest())
     }
 }
@@ -82,10 +82,10 @@ import Testing
             multiPageSupported: false,
             supportedOutputKinds: []
         ),
-        scanOutcome: .failure(.unavailable("document scanner unavailable"))
+        scanOutcome: .failure(.unavailable)
     )
 
-    await #expect(throws: RadrootsCaptureIntakeError.unavailable("document scanner unavailable")) {
+    await #expect(throws: RadrootsCaptureIntakeError.unavailable) {
         _ = try await scanner.scanDocument(RadrootsDocumentScanRequest())
     }
 }

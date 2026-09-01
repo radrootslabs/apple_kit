@@ -34,12 +34,13 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         case errSecDuplicateItem:
             break
         default:
-            throw Self.mapStatus(addStatus, defaultMessage: "keychain write failed")
+            throw Self.mapStatus(addStatus)
         }
 
-        let updateStatus = try SecItemUpdate(baseQuery(for: key) as CFDictionary, attributes as CFDictionary)
+        let updateStatus = try SecItemUpdate(
+            baseQuery(for: key) as CFDictionary, attributes as CFDictionary)
         guard updateStatus == errSecSuccess else {
-            throw Self.mapStatus(updateStatus, defaultMessage: "keychain update failed")
+            throw Self.mapStatus(updateStatus)
         }
     }
 
@@ -52,7 +53,7 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
             return false
         }
         guard status == errSecSuccess else {
-            throw Self.mapStatus(status, defaultMessage: "keychain presence check failed")
+            throw Self.mapStatus(status)
         }
         return true
     }
@@ -68,10 +69,10 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
             return nil
         }
         guard status == errSecSuccess else {
-            throw Self.mapStatus(status, defaultMessage: "keychain read failed")
+            throw Self.mapStatus(status)
         }
         guard let data = result as? Data else {
-            throw RadrootsAppleSecurityError.permanentFailure("keychain returned an invalid value type")
+            throw RadrootsAppleSecurityError.permanentFailure
         }
         return data
     }
@@ -79,14 +80,14 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     public func delete(_ key: RadrootsSecureStoreKey) throws {
         let status = try SecItemDelete(baseQuery(for: key) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw Self.mapStatus(status, defaultMessage: "keychain delete failed")
+            throw Self.mapStatus(status)
         }
     }
 
     public func deleteNamespace(_ namespace: String) throws {
         let status = try SecItemDelete(namespaceQuery(namespace) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw Self.mapStatus(status, defaultMessage: "keychain namespace delete failed")
+            throw Self.mapStatus(status)
         }
     }
 
@@ -122,7 +123,9 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         }
     }
 
-    func keychainPolicyMapping(for policy: RadrootsSecretAccessPolicy) -> RadrootsKeychainSecretPolicyMapping {
+    func keychainPolicyMapping(for policy: RadrootsSecretAccessPolicy)
+        -> RadrootsKeychainSecretPolicyMapping
+    {
         RadrootsKeychainSecretPolicyMapping(
             accessibilityConstant: accessibilityConstant(for: policy),
             usesAccessControl: policy.userPresenceRequired,
@@ -135,7 +138,13 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     }
 
     func accessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl {
-        try accessControlFactory(mapping)
+        do {
+            return try accessControlFactory(mapping)
+        } catch let error as RadrootsAppleSecurityError {
+            throw error
+        } catch {
+            throw RadrootsAppleSecurityError.keychainFailure
+        }
     }
 
     private func mutationAttributes(
@@ -144,7 +153,7 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
     ) throws -> [String: Any] {
         let mapping = keychainPolicyMapping(for: policy)
         var attributes: [String: Any] = [
-            kSecValueData as String: value,
+            kSecValueData as String: value
         ]
         if mapping.usesAccessControl {
             attributes[kSecAttrAccessControl as String] = try accessControl(for: mapping)
@@ -154,35 +163,36 @@ public final class RadrootsAppleKeychainSecureStore: RadrootsSecureStore, @unche
         return attributes
     }
 
-    private static func makeAccessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws -> SecAccessControl {
-        var error: Unmanaged<CFError>?
-        guard let accessControl = SecAccessControlCreateWithFlags(
+    private static func makeAccessControl(for mapping: RadrootsKeychainSecretPolicyMapping) throws
+        -> SecAccessControl
+    {
+        guard
+            let accessControl = SecAccessControlCreateWithFlags(
             nil,
             mapping.accessibilityConstant,
             mapping.accessControlFlags,
-            &error
-        ) else {
-            let message = (error?.takeRetainedValue() as Error?)?.localizedDescription
-                ?? "keychain access control initialization failed"
-            throw RadrootsAppleSecurityError.invalidRequest(message)
+                nil
+            )
+        else {
+            throw RadrootsAppleSecurityError.invalidRequest
         }
         return accessControl
     }
 
-    static func mapStatus(_ status: OSStatus, defaultMessage: String) -> RadrootsAppleSecurityError {
+    static func mapStatus(_ status: OSStatus) -> RadrootsAppleSecurityError {
         switch status {
         case errSecItemNotFound:
-            .notFound(defaultMessage)
+            .notFound
         case errSecAuthFailed:
-            .permissionDenied(defaultMessage)
+            .permissionDenied
         case errSecInteractionNotAllowed:
-            .transientFailure(defaultMessage)
+            .transientFailure
         case errSecUserCanceled:
-            .userCancelled(defaultMessage)
+            .userCancelled
         case errSecNotAvailable:
-            .unavailable(defaultMessage)
+            .unavailable
         default:
-            .keychainStatus(status, defaultMessage)
+            .keychainFailure
         }
     }
 }

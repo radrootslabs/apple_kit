@@ -1,29 +1,23 @@
 import Foundation
 
 public enum RadrootsCaptureIntakeError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case unavailable(String)
-    case permissionDenied(String)
-    case userCancelled(String)
-    case transientFailure(String)
-    case permanentFailure(String)
+    case invalidRequest
+    case unavailable
+    case permissionDenied
+    case userCancelled
+    case transientFailure
+    case permanentFailure
 }
 
 extension RadrootsCaptureIntakeError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .unavailable(message):
-            message
-        case let .permissionDenied(message):
-            message
-        case let .userCancelled(message):
-            message
-        case let .transientFailure(message):
-            message
-        case let .permanentFailure(message):
-            message
+        case .invalidRequest: "The capture request is invalid."
+        case .unavailable: "Capture is unavailable."
+        case .permissionDenied: "Capture permission was denied."
+        case .userCancelled: "Capture was cancelled."
+        case .transientFailure: "Capture could not be completed temporarily."
+        case .permanentFailure: "Capture could not be completed."
         }
     }
 }
@@ -51,7 +45,8 @@ public struct RadrootsMediaImportRequest: Sendable, Equatable, Hashable {
             allowedMediaKinds,
             field: "media import"
         )
-        self.selectionLimit = try RadrootsCaptureIntakeValidation.normalizedSelectionLimit(selectionLimit)
+        self.selectionLimit = try RadrootsCaptureIntakeValidation.normalizedSelectionLimit(
+            selectionLimit)
         self.destinationScope = destinationScope
     }
 }
@@ -85,11 +80,15 @@ public struct RadrootsMediaPickerSupport: Sendable, Equatable, Hashable {
     ) throws {
         self.importAvailable = importAvailable
         self.cameraCaptureAvailable = cameraCaptureAvailable
-        self.supportedImportKinds = importAvailable
-            ? try RadrootsCaptureIntakeValidation.normalizedMediaKinds(supportedImportKinds, field: "media import support")
+        self.supportedImportKinds =
+            importAvailable
+            ? try RadrootsCaptureIntakeValidation.normalizedMediaKinds(
+                supportedImportKinds, field: "media import support")
             : []
-        self.supportedCaptureKinds = cameraCaptureAvailable
-            ? try RadrootsCaptureIntakeValidation.normalizedMediaKinds(supportedCaptureKinds, field: "camera capture support")
+        self.supportedCaptureKinds =
+            cameraCaptureAvailable
+            ? try RadrootsCaptureIntakeValidation.normalizedMediaKinds(
+                supportedCaptureKinds, field: "camera capture support")
             : []
         self.multipleSelectionSupported = multipleSelectionSupported
     }
@@ -121,16 +120,20 @@ public struct RadrootsMediaAsset: Sendable, Equatable, Hashable {
         self.kind = kind
         self.file = file
         self.mediaType = try RadrootsCaptureIntakeValidation.normalizedMediaType(mediaType)
-        self.suggestedFilename = try RadrootsCaptureIntakeValidation.normalizedFilename(suggestedFilename)
+        self.suggestedFilename = try RadrootsCaptureIntakeValidation.normalizedFilename(
+            suggestedFilename)
         self.sizeBytes = sizeBytes
-        self.pixelWidth = try RadrootsCaptureIntakeValidation.normalizedDimension(pixelWidth, field: "pixel width")
-        self.pixelHeight = try RadrootsCaptureIntakeValidation.normalizedDimension(pixelHeight, field: "pixel height")
+        self.pixelWidth = try RadrootsCaptureIntakeValidation.normalizedDimension(
+            pixelWidth, field: "pixel width")
+        self.pixelHeight = try RadrootsCaptureIntakeValidation.normalizedDimension(
+            pixelHeight, field: "pixel height")
         if self.pixelWidth == nil || self.pixelHeight == nil {
             guard self.pixelWidth == nil, self.pixelHeight == nil else {
-                throw RadrootsCaptureIntakeError.invalidRequest("image dimensions must include width and height together")
+                throw RadrootsCaptureIntakeError.invalidRequest
             }
         }
-        self.capturedAt = try RadrootsCaptureIntakeValidation.normalizedDate(capturedAt, field: "captured timestamp")
+        self.capturedAt = try RadrootsCaptureIntakeValidation.normalizedDate(
+            capturedAt, field: "captured timestamp")
     }
 }
 
@@ -139,7 +142,7 @@ public struct RadrootsMediaImportResult: Sendable, Equatable, Hashable {
 
     public init(items: [RadrootsMediaAsset]) throws {
         guard !items.isEmpty else {
-            throw RadrootsCaptureIntakeError.invalidRequest("media import result cannot be empty")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         self.items = items
     }
@@ -156,7 +159,8 @@ public struct RadrootsMediaCaptureResult: Sendable, Equatable, Hashable {
 public protocol RadrootsMediaPicker: Sendable {
     func currentSupport() async throws -> RadrootsMediaPickerSupport
     func importMedia(_ request: RadrootsMediaImportRequest) async throws -> RadrootsMediaImportResult
-    func captureMedia(_ request: RadrootsMediaCaptureRequest) async throws -> RadrootsMediaCaptureResult
+    func captureMedia(_ request: RadrootsMediaCaptureRequest) async throws
+        -> RadrootsMediaCaptureResult
 }
 
 public enum RadrootsDocumentScannerOutputKind: String, Sendable, Equatable, Hashable, CaseIterable {
@@ -175,7 +179,8 @@ public struct RadrootsDocumentScannerSupport: Sendable, Equatable, Hashable {
     ) throws {
         self.interactiveScanAvailable = interactiveScanAvailable
         self.multiPageSupported = multiPageSupported && interactiveScanAvailable
-        self.supportedOutputKinds = interactiveScanAvailable
+        self.supportedOutputKinds =
+            interactiveScanAvailable
             ? try RadrootsCaptureIntakeValidation.normalizedScannerOutputKinds(supportedOutputKinds)
             : []
     }
@@ -214,14 +219,16 @@ public struct RadrootsScannedDocument: Sendable, Equatable, Hashable {
     ) throws {
         self.file = file
         self.outputKind = outputKind
-        self.suggestedFilename = try RadrootsCaptureIntakeValidation.normalizedFilename(suggestedFilename)
+        self.suggestedFilename = try RadrootsCaptureIntakeValidation.normalizedFilename(
+            suggestedFilename)
         self.mediaType = try RadrootsCaptureIntakeValidation.normalizedMediaType(mediaType)
         guard pageCount > 0 else {
-            throw RadrootsCaptureIntakeError.invalidRequest("scanned document page count must be positive")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         self.pageCount = pageCount
         self.sizeBytes = sizeBytes
-        self.capturedAt = try RadrootsCaptureIntakeValidation.normalizedDate(capturedAt, field: "scanned document timestamp")
+        self.capturedAt = try RadrootsCaptureIntakeValidation.normalizedDate(
+            capturedAt, field: "scanned document timestamp")
     }
 }
 
@@ -231,7 +238,9 @@ public protocol RadrootsDocumentScanner: Sendable {
 }
 
 public enum RadrootsCaptureIntakeValidation {
-    public static func normalizedMediaKinds(_ kinds: [RadrootsMediaKind], field: String) throws -> [RadrootsMediaKind] {
+    public static func normalizedMediaKinds(_ kinds: [RadrootsMediaKind], field: String) throws
+        -> [RadrootsMediaKind]
+    {
         var seen = Set<RadrootsMediaKind>()
         let normalized = kinds.filter { kind in
             if seen.contains(kind) {
@@ -241,17 +250,17 @@ public enum RadrootsCaptureIntakeValidation {
             return true
         }
         guard !normalized.isEmpty else {
-            throw RadrootsCaptureIntakeError.invalidRequest("\(field) must allow at least one media kind")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return normalized
     }
 
     public static func normalizedSelectionLimit(_ selectionLimit: Int) throws -> Int {
         guard selectionLimit > 0 else {
-            throw RadrootsCaptureIntakeError.invalidRequest("media import selection limit must be positive")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard selectionLimit <= 100 else {
-            throw RadrootsCaptureIntakeError.invalidRequest("media import selection limit cannot exceed 100")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return selectionLimit
     }
@@ -268,7 +277,7 @@ public enum RadrootsCaptureIntakeValidation {
             return true
         }
         guard !normalized.isEmpty else {
-            throw RadrootsCaptureIntakeError.invalidRequest("document scanner must support at least one output kind")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return normalized
     }
@@ -276,22 +285,22 @@ public enum RadrootsCaptureIntakeValidation {
     public static func normalizedFilename(_ filename: String) throws -> String {
         let trimmed = filename.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be empty")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard trimmed != ".", trimmed != ".." else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be a path segment")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard !NSString(string: trimmed).isAbsolutePath else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot be absolute")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard !trimmed.contains("/"), !trimmed.contains("\\"), !trimmed.contains("\0") else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot contain path separators")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard trimmed.rangeOfCharacter(from: .controlCharacters) == nil else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename cannot contain control characters")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         guard trimmed.utf8.count <= 255 else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture filename is too long")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return trimmed
     }
@@ -299,14 +308,15 @@ public enum RadrootsCaptureIntakeValidation {
     public static func normalizedMediaType(_ mediaType: String) throws -> String {
         let trimmed = mediaType.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture media type cannot be empty")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
-        guard trimmed.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture media type cannot contain whitespace")
+        guard trimmed.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil
+        else {
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty }) else {
-            throw RadrootsCaptureIntakeError.invalidRequest("capture media type must be type/subtype")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return trimmed.lowercased()
     }
@@ -316,14 +326,14 @@ public enum RadrootsCaptureIntakeValidation {
             return nil
         }
         guard dimension > 0 else {
-            throw RadrootsCaptureIntakeError.invalidRequest("\(field) must be positive")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return dimension
     }
 
     public static func normalizedDate(_ date: Date, field: String) throws -> Date {
         guard date.timeIntervalSinceReferenceDate.isFinite else {
-            throw RadrootsCaptureIntakeError.invalidRequest("\(field) must be finite")
+            throw RadrootsCaptureIntakeError.invalidRequest
         }
         return date
     }

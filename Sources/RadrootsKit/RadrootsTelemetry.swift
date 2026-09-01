@@ -1,16 +1,11 @@
 import Foundation
 
 public enum RadrootsTelemetryError: Error, Equatable, Sendable {
-    case invalidRequest(String)
+    case invalidRequest
 }
 
 extension RadrootsTelemetryError: LocalizedError {
-    public var errorDescription: String? {
-        switch self {
-        case let .invalidRequest(message):
-            message
-        }
-    }
+    public var errorDescription: String? { "The telemetry request is invalid." }
 }
 
 public enum RadrootsTelemetryLevel: String, Sendable, Equatable, Hashable, CaseIterable, Comparable {
@@ -55,15 +50,15 @@ public enum RadrootsTelemetryFieldValue: Sendable, Equatable, Hashable {
 
     public var renderedValue: String {
         switch self {
-        case let .string(value):
+        case .string(let value):
             value
-        case let .integer(value):
+        case .integer(let value):
             String(value)
-        case let .double(value):
+        case .double(let value):
             String(value)
-        case let .bool(value):
+        case .bool(let value):
             value ? "true" : "false"
-        case let .stringList(value):
+        case .stringList(let value):
             value.joined(separator: ",")
         }
     }
@@ -73,11 +68,11 @@ public enum RadrootsTelemetryFieldValue: Sendable, Equatable, Hashable {
         policy: RadrootsTelemetryRedactionPolicy
     ) -> RadrootsTelemetryFieldValue {
         switch self {
-        case let .string(value):
+        case .string(let value):
             return .string(policy.redactedString(value, key: key))
         case .integer, .double, .bool:
             return policy.shouldRedactKey(key) ? .string(policy.replacement) : self
-        case let .stringList(values):
+        case .stringList(let values):
             if policy.shouldRedactKey(key) {
                 return .string(policy.replacement)
             }
@@ -163,11 +158,11 @@ public struct RadrootsTelemetryEvent: Sendable, Equatable, Hashable {
         )
         let normalizedMessage = try RadrootsTelemetryValidation.normalizedMessage(message)
         guard occurredAt.timeIntervalSinceReferenceDate.isFinite else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry event timestamp must be finite")
+            throw RadrootsTelemetryError.invalidRequest
         }
         let duplicateFieldKeys = Set(fields.map(\.key)).count != fields.count
         guard !duplicateFieldKeys else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry event field keys must be unique")
+            throw RadrootsTelemetryError.invalidRequest
         }
         self.name = normalizedName
         self.category = normalizedCategory
@@ -332,16 +327,18 @@ public enum RadrootsTelemetryValidation {
     ) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsTelemetryError.invalidRequest("\(field) must not be empty")
+            throw RadrootsTelemetryError.invalidRequest
         }
         guard trimmed.count <= maximumLength else {
-            throw RadrootsTelemetryError.invalidRequest("\(field) is too long")
+            throw RadrootsTelemetryError.invalidRequest
         }
-        guard trimmed.range(
+        guard
+            trimmed.range(
             of: "^[a-z][a-z0-9._-]*$",
             options: .regularExpression
-        ) != nil else {
-            throw RadrootsTelemetryError.invalidRequest("\(field) must use lowercase safe identifier characters")
+            ) != nil
+        else {
+            throw RadrootsTelemetryError.invalidRequest
         }
         return trimmed
     }
@@ -355,29 +352,29 @@ public enum RadrootsTelemetryValidation {
             return nil
         }
         guard doesNotContainControlCharacters(trimmed) else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry event message cannot contain control characters")
+            throw RadrootsTelemetryError.invalidRequest
         }
         guard trimmed.count <= 500 else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry event message is too long")
+            throw RadrootsTelemetryError.invalidRequest
         }
         return trimmed
     }
 
     public static func validate(_ value: RadrootsTelemetryFieldValue) throws {
         switch value {
-        case let .string(string):
+        case .string(let string):
             try validateStringValue(string)
         case .integer:
             return
-        case let .double(double):
+        case .double(let double):
             guard double.isFinite else {
-                throw RadrootsTelemetryError.invalidRequest("telemetry double field must be finite")
+                throw RadrootsTelemetryError.invalidRequest
             }
         case .bool:
             return
-        case let .stringList(values):
+        case .stringList(let values):
             guard values.count <= 24 else {
-                throw RadrootsTelemetryError.invalidRequest("telemetry string list field is too long")
+                throw RadrootsTelemetryError.invalidRequest
             }
             for value in values {
                 try validateStringValue(value)
@@ -387,10 +384,10 @@ public enum RadrootsTelemetryValidation {
 
     private static func validateStringValue(_ value: String) throws {
         guard doesNotContainControlCharacters(value) else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry string field cannot contain control characters")
+            throw RadrootsTelemetryError.invalidRequest
         }
         guard value.count <= 500 else {
-            throw RadrootsTelemetryError.invalidRequest("telemetry string field is too long")
+            throw RadrootsTelemetryError.invalidRequest
         }
     }
 

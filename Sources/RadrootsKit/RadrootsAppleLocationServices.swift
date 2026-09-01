@@ -9,14 +9,17 @@ public struct RadrootsAppleLocationServicesAdapters: Sendable {
     public let locationServicesEnabled: @Sendable () -> Bool
     public let authorizationStatus: @Sendable () -> RadrootsLocationAuthorization
     public let requestWhenInUseAuthorization: @Sendable (TimeInterval) async throws -> RadrootsLocationAuthorization
-    public let requestCurrentLocation: @Sendable (RadrootsCurrentLocationRequest) async throws -> RadrootsLocationReading
+    public let requestCurrentLocation:
+        @Sendable (RadrootsCurrentLocationRequest) async throws -> RadrootsLocationReading
 
     public init(
         now: @escaping @Sendable () -> Date = Date.init,
         locationServicesEnabled: @escaping @Sendable () -> Bool,
         authorizationStatus: @escaping @Sendable () -> RadrootsLocationAuthorization,
-        requestWhenInUseAuthorization: @escaping @Sendable (TimeInterval) async throws -> RadrootsLocationAuthorization,
-        requestCurrentLocation: @escaping @Sendable (RadrootsCurrentLocationRequest) async throws -> RadrootsLocationReading
+        requestWhenInUseAuthorization:
+            @escaping @Sendable (TimeInterval) async throws -> RadrootsLocationAuthorization,
+        requestCurrentLocation:
+            @escaping @Sendable (RadrootsCurrentLocationRequest) async throws -> RadrootsLocationReading
     ) {
         self.now = now
         self.locationServicesEnabled = locationServicesEnabled
@@ -49,10 +52,10 @@ public struct RadrootsAppleLocationServicesAdapters: Sendable {
                 locationServicesEnabled: { false },
                 authorizationStatus: { .unsupported },
                 requestWhenInUseAuthorization: { _ in
-                    throw RadrootsLocationServicesError.unavailable("CoreLocation is not available")
+                    throw RadrootsLocationServicesError.unavailable
                 },
                 requestCurrentLocation: { _ in
-                    throw RadrootsLocationServicesError.unavailable("CoreLocation is not available")
+                    throw RadrootsLocationServicesError.unavailable
                 }
             )
         #endif
@@ -104,52 +107,68 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
     public func requestWhenInUseAuthorization() async throws -> RadrootsLocationAuthorization {
         let availability = await currentAvailability()
         guard availability.locationServicesEnabled else {
-            throw RadrootsLocationServicesError.unavailable("location services are disabled")
+            throw RadrootsLocationServicesError.unavailable
         }
         switch availability.authorization {
         case .notDetermined:
+            do {
             return try await adapters.requestWhenInUseAuthorization(12)
+            } catch let error as RadrootsLocationServicesError {
+                throw error
+            } catch {
+                throw RadrootsLocationServicesError.permanentFailure
+            }
         case .authorizedWhenInUse:
             return .authorizedWhenInUse
         case .authorizedAlways:
             return .authorizedAlways
         case .denied:
-            throw RadrootsLocationServicesError.permissionDenied("location permission is denied")
+            throw RadrootsLocationServicesError.permissionDenied
         case .restricted:
-            throw RadrootsLocationServicesError.permissionDenied("location permission is restricted")
+            throw RadrootsLocationServicesError.permissionDenied
         case .unavailable:
-            throw RadrootsLocationServicesError.unavailable("location services are unavailable")
+            throw RadrootsLocationServicesError.unavailable
         case .unsupported:
-            throw RadrootsLocationServicesError.unavailable("location services are unsupported")
+            throw RadrootsLocationServicesError.unavailable
         }
     }
 
-    public func currentLocation(_ request: RadrootsCurrentLocationRequest) async throws -> RadrootsCurrentLocationResult {
+    public func currentLocation(_ request: RadrootsCurrentLocationRequest) async throws
+        -> RadrootsCurrentLocationResult
+    {
         let availability = await currentAvailability()
         guard availability.locationServicesEnabled else {
-            throw RadrootsLocationServicesError.unavailable("location services are disabled")
+            throw RadrootsLocationServicesError.unavailable
         }
         guard availability.canRequestCurrentLocation else {
             switch availability.authorization {
             case .denied:
-                throw RadrootsLocationServicesError.permissionDenied("location permission is denied")
+                throw RadrootsLocationServicesError.permissionDenied
             case .restricted:
-                throw RadrootsLocationServicesError.permissionDenied("location permission is restricted")
+                throw RadrootsLocationServicesError.permissionDenied
             case .notDetermined:
-                throw RadrootsLocationServicesError.permissionDenied("location permission has not been requested")
+                throw RadrootsLocationServicesError.permissionDenied
             case .unavailable:
-                throw RadrootsLocationServicesError.unavailable("location services are unavailable")
+                throw RadrootsLocationServicesError.unavailable
             case .unsupported:
-                throw RadrootsLocationServicesError.unavailable("location services are unsupported")
+                throw RadrootsLocationServicesError.unavailable
             case .authorizedWhenInUse, .authorizedAlways:
                 break
             }
-            throw RadrootsLocationServicesError.unavailable("location services are unavailable")
+            throw RadrootsLocationServicesError.unavailable
         }
-        let reading = try await adapters.requestCurrentLocation(request)
+        let reading: RadrootsLocationReading
+        do {
+            reading = try await adapters.requestCurrentLocation(request)
+        } catch let error as RadrootsLocationServicesError {
+            throw error
+        } catch {
+            throw RadrootsLocationServicesError.permanentFailure
+        }
         if let maximumAgeSeconds = request.maximumCachedReadingAgeSeconds {
-            guard try reading.isFresh(relativeTo: adapters.now(), maximumAgeSeconds: maximumAgeSeconds) else {
-                throw RadrootsLocationServicesError.transientFailure("location reading is older than the requested maximum age")
+            guard try reading.isFresh(relativeTo: adapters.now(), maximumAgeSeconds: maximumAgeSeconds)
+            else {
+                throw RadrootsLocationServicesError.transientFailure
             }
         }
         return try RadrootsCurrentLocationResult(
@@ -161,7 +180,9 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
 
 #if canImport(CoreLocation)
     @MainActor
-    private final class RadrootsCoreLocationAuthorizationSession: NSObject, @preconcurrency CLLocationManagerDelegate {
+    private final class RadrootsCoreLocationAuthorizationSession: NSObject,
+        @preconcurrency CLLocationManagerDelegate
+    {
         private var continuation: CheckedContinuation<RadrootsLocationAuthorization, any Error>?
         private var manager: CLLocationManager?
         private var timeoutTask: Task<Void, Never>?
@@ -176,13 +197,13 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
                     timeoutTask = Task { [weak self] in
                         let nanoseconds = UInt64(timeoutSeconds * 1_000_000_000)
                         try? await Task.sleep(nanoseconds: nanoseconds)
-                        self?.finish(.failure(.timeout("location authorization timed out")))
+                        self?.finish(.failure(.timeout))
                     }
                     manager.requestWhenInUseAuthorization()
                 }
             } onCancel: {
                 Task { @MainActor [weak self] in
-                    self?.finish(.failure(.cancelled("location authorization was cancelled")))
+                    self?.finish(.failure(.cancelled))
                 }
             }
         }
@@ -198,7 +219,9 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
             finish(.success(authorization))
         }
 
-        private func finish(_ result: Result<RadrootsLocationAuthorization, RadrootsLocationServicesError>) {
+        private func finish(
+            _ result: Result<RadrootsLocationAuthorization, RadrootsLocationServicesError>
+        ) {
             guard let continuation else {
                 return
             }
@@ -208,16 +231,18 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
             manager?.delegate = nil
             manager = nil
             switch result {
-            case let .success(authorization):
+            case .success(let authorization):
                 continuation.resume(returning: authorization)
-            case let .failure(error):
+            case .failure(let error):
                 continuation.resume(throwing: error)
             }
         }
     }
 
     @MainActor
-    private final class RadrootsCoreLocationReadingSession: NSObject, @preconcurrency CLLocationManagerDelegate {
+    private final class RadrootsCoreLocationReadingSession: NSObject,
+        @preconcurrency CLLocationManagerDelegate
+    {
         private var continuation: CheckedContinuation<RadrootsLocationReading, any Error>?
         private var manager: CLLocationManager?
         private var timeoutTask: Task<Void, Never>?
@@ -235,20 +260,20 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
                     timeoutTask = Task { [weak self] in
                         let nanoseconds = UInt64(request.timeoutSeconds * 1_000_000_000)
                         try? await Task.sleep(nanoseconds: nanoseconds)
-                        self?.finish(.failure(.timeout("current location request timed out")))
+                        self?.finish(.failure(.timeout))
                     }
                     manager.requestLocation()
                 }
             } onCancel: {
                 Task { @MainActor [weak self] in
-                    self?.finish(.failure(.cancelled("current location request was cancelled")))
+                    self?.finish(.failure(.cancelled))
                 }
             }
         }
 
         func locationManager(_: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
             guard let location = locations.sorted(by: { $0.timestamp < $1.timestamp }).last else {
-                finish(.failure(.transientFailure("CoreLocation returned no locations")))
+                finish(.failure(.transientFailure))
                 return
             }
             do {
@@ -256,7 +281,7 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
             } catch let error as RadrootsLocationServicesError {
                 finish(.failure(error))
             } catch {
-                finish(.failure(.permanentFailure(error.localizedDescription)))
+                finish(.failure(.permanentFailure))
             }
         }
 
@@ -264,16 +289,16 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
             if let coreLocationError = error as? CLError {
                 switch coreLocationError.code {
                 case .denied:
-                    finish(.failure(.permissionDenied("location permission is denied")))
+                    finish(.failure(.permissionDenied))
                 case .locationUnknown:
-                    finish(.failure(.transientFailure("current location is temporarily unknown")))
+                    finish(.failure(.transientFailure))
                 case .network:
-                    finish(.failure(.transientFailure("location network lookup failed")))
+                    finish(.failure(.transientFailure))
                 default:
-                    finish(.failure(.permanentFailure(coreLocationError.localizedDescription)))
+                    finish(.failure(.permanentFailure))
                 }
             } else {
-                finish(.failure(.permanentFailure(error.localizedDescription)))
+                finish(.failure(.permanentFailure))
             }
         }
 
@@ -287,9 +312,9 @@ public final class RadrootsAppleLocationServices: RadrootsLocationServices, Send
             manager?.delegate = nil
             manager = nil
             switch result {
-            case let .success(reading):
+            case .success(let reading):
                 continuation.resume(returning: reading)
-            case let .failure(error):
+            case .failure(let error):
                 continuation.resume(throwing: error)
             }
         }

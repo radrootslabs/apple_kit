@@ -21,7 +21,8 @@ import Foundation
 #endif
 
 #if canImport(UIKit)
-    public typealias RadrootsAppleViewControllerProvider = @MainActor @Sendable () throws -> UIViewController
+    public typealias RadrootsAppleViewControllerProvider =
+        @MainActor @Sendable () throws -> UIViewController
 #endif
 
 public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sendable {
@@ -80,15 +81,22 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         #endif
     }
 
-    public func importMedia(_ request: RadrootsMediaImportRequest) async throws -> RadrootsMediaImportResult {
+    public func importMedia(_ request: RadrootsMediaImportRequest) async throws
+        -> RadrootsMediaImportResult
+    {
         #if canImport(UIKit) && canImport(PhotosUI)
             let support = try await currentSupport()
             guard support.importAvailable else {
-                throw RadrootsCaptureIntakeError.unavailable("media import is unavailable")
+                throw RadrootsCaptureIntakeError.unavailable
             }
             let writer = RadrootsAppleMediaAssetWriter(fileAccess: fileAccess, fileManager: fileManager)
-            let presenter = try await MainActor.run {
+            let presenter: UIViewController
+            do {
+                presenter = try await MainActor.run {
                 try viewControllerProvider()
+            }
+            } catch {
+                throw Self.adapt(error: error)
             }
             let coordinatorID = UUID()
             return try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
@@ -113,20 +121,27 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                 presenter.present(picker, animated: true)
             }
         #else
-            throw RadrootsCaptureIntakeError.unavailable("media import is unavailable")
+            throw RadrootsCaptureIntakeError.unavailable
         #endif
     }
 
-    public func captureMedia(_ request: RadrootsMediaCaptureRequest) async throws -> RadrootsMediaCaptureResult {
+    public func captureMedia(_ request: RadrootsMediaCaptureRequest) async throws
+        -> RadrootsMediaCaptureResult
+    {
         #if canImport(UIKit)
             let support = try await currentSupport()
             guard support.cameraCaptureAvailable else {
-                throw RadrootsCaptureIntakeError.unavailable("camera photo capture is unavailable")
+                throw RadrootsCaptureIntakeError.unavailable
             }
             try await Self.requestCameraAccessIfNeeded()
             let writer = RadrootsAppleMediaAssetWriter(fileAccess: fileAccess, fileManager: fileManager)
-            let presenter = try await MainActor.run {
+            let presenter: UIViewController
+            do {
+                presenter = try await MainActor.run {
                 try viewControllerProvider()
+            }
+            } catch {
+                throw Self.adapt(error: error)
             }
             let coordinatorID = UUID()
             return try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
@@ -151,7 +166,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                 presenter.present(picker, animated: true)
             }
         #else
-            throw RadrootsCaptureIntakeError.unavailable("camera photo capture is unavailable")
+            throw RadrootsCaptureIntakeError.unavailable
         #endif
     }
 
@@ -172,31 +187,33 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         if let fileError = error as? RadrootsAppleFileError {
             return adapt(fileError: fileError)
         }
-        return RadrootsCaptureIntakeError.transientFailure((error as NSError).localizedDescription)
+        return RadrootsCaptureIntakeError.transientFailure
     }
 
     static func adapt(fileError: RadrootsAppleFileError) -> RadrootsCaptureIntakeError {
         switch fileError {
-        case let .invalidRequest(message):
-            .invalidRequest(message)
-        case let .notFound(message):
-            .transientFailure(message)
-        case let .permissionDenied(message):
-            .permissionDenied(message)
-        case let .transientFailure(message):
-            .transientFailure(message)
-        case let .permanentFailure(message):
-            .permanentFailure(message)
+        case .invalidRequest:
+            .invalidRequest
+        case .notFound:
+            .transientFailure
+        case .permissionDenied:
+            .permissionDenied
+        case .transientFailure:
+            .transientFailure
+        case .permanentFailure:
+            .permanentFailure
         }
     }
 }
 
 #if canImport(UIKit)
-    private extension RadrootsAppleMediaPicker {
+    extension RadrootsAppleMediaPicker {
         @MainActor
-        static func liveSupport() throws -> RadrootsMediaPickerSupport {
-            let cameraAvailable = UIImagePickerController.isSourceTypeAvailable(.camera) &&
-                UIImagePickerController.availableMediaTypes(for: .camera)?.contains(imageTypeIdentifier()) == true
+        fileprivate static func liveSupport() throws -> RadrootsMediaPickerSupport {
+            let cameraAvailable =
+                UIImagePickerController.isSourceTypeAvailable(.camera)
+                && UIImagePickerController.availableMediaTypes(for: .camera)?.contains(
+                    imageTypeIdentifier()) == true
             return try RadrootsMediaPickerSupport(
                 importAvailable: true,
                 cameraCaptureAvailable: cameraAvailable,
@@ -206,7 +223,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             )
         }
 
-        static func imageTypeIdentifier() -> String {
+        fileprivate static func imageTypeIdentifier() -> String {
             #if canImport(UniformTypeIdentifiers)
                 UTType.image.identifier
             #else
@@ -214,7 +231,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             #endif
         }
 
-        static func requestCameraAccessIfNeeded() async throws {
+        fileprivate static func requestCameraAccessIfNeeded() async throws {
             #if canImport(AVFoundation)
                 switch AVCaptureDevice.authorizationStatus(for: .video) {
                 case .authorized:
@@ -222,17 +239,17 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                 case .notDetermined:
                     let granted = await AVCaptureDevice.requestAccess(for: .video)
                     guard granted else {
-                        throw RadrootsCaptureIntakeError.permissionDenied("camera access was not granted")
+                        throw RadrootsCaptureIntakeError.permissionDenied
                     }
                 case .denied:
-                    throw RadrootsCaptureIntakeError.permissionDenied("camera access is denied")
+                    throw RadrootsCaptureIntakeError.permissionDenied
                 case .restricted:
-                    throw RadrootsCaptureIntakeError.permissionDenied("camera access is restricted")
+                    throw RadrootsCaptureIntakeError.permissionDenied
                 @unknown default:
-                    throw RadrootsCaptureIntakeError.unavailable("camera authorization is unavailable")
+                    throw RadrootsCaptureIntakeError.unavailable
                 }
             #else
-                throw RadrootsCaptureIntakeError.unavailable("camera authorization is unavailable")
+                throw RadrootsCaptureIntakeError.unavailable
             #endif
         }
     }
@@ -246,11 +263,13 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                     scene.activationState == .foregroundActive || scene.activationState == .foregroundInactive
                 }
             let windows = scenes.flatMap(\.windows)
-            guard let window = windows.first(where: \.isKeyWindow) ?? windows.first(where: { !$0.isHidden }) else {
-                throw RadrootsCaptureIntakeError.unavailable("\(service) requires an active foreground window")
+            guard
+                let window = windows.first(where: \.isKeyWindow) ?? windows.first(where: { !$0.isHidden })
+            else {
+                throw RadrootsCaptureIntakeError.unavailable
             }
             guard let rootViewController = window.rootViewController else {
-                throw RadrootsCaptureIntakeError.unavailable("\(service) requires an active foreground view controller")
+                throw RadrootsCaptureIntakeError.unavailable
             }
             return topViewController(rootViewController)
         }
@@ -299,7 +318,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             picker.dismiss(animated: true)
             selectedResults = Array(results.prefix(request.selectionLimit))
             guard !selectedResults.isEmpty else {
-                finish(.failure(.userCancelled("media import was cancelled")))
+                finish(.failure(.userCancelled))
                 return
             }
             loadResult(at: 0, collected: [])
@@ -316,14 +335,18 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             }
             let provider = selectedResults[index].itemProvider
             let suggestedName = provider.suggestedName ?? "photo"
-            guard provider.hasItemConformingToTypeIdentifier(RadrootsAppleMediaPicker.imageTypeIdentifier()) else {
-                finish(.failure(.transientFailure("media import could not resolve an image file representation")))
+            guard
+                provider.hasItemConformingToTypeIdentifier(RadrootsAppleMediaPicker.imageTypeIdentifier())
+            else {
+                finish(.failure(.transientFailure))
                 return
             }
             let writer = writer
             let destinationScope = request.destinationScope
             let mediaTypeHint = mediaTypeHint(from: provider)
-            provider.loadFileRepresentation(forTypeIdentifier: RadrootsAppleMediaPicker.imageTypeIdentifier()) { url, error in
+            provider.loadFileRepresentation(
+                forTypeIdentifier: RadrootsAppleMediaPicker.imageTypeIdentifier()
+            ) { url, error in
                 if let error {
                     Task { @MainActor in
                         self.finish(.failure(RadrootsAppleMediaPicker.adapt(error: error)))
@@ -332,7 +355,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                 }
                 guard let url else {
                     Task { @MainActor in
-                        self.finish(.failure(.transientFailure("media import finished without an image file representation")))
+                        self.finish(.failure(.transientFailure))
                     }
                     return
                 }
@@ -352,11 +375,11 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
                 }
                 Task { @MainActor in
                     switch result {
-                    case let .success(asset):
+                    case .success(let asset):
                         var nextCollected = collected
                         nextCollected.append(asset)
                         self.loadResult(at: index + 1, collected: nextCollected)
-                    case let .failure(error):
+                    case .failure(let error):
                         self.finish(.failure(error))
                     }
                 }
@@ -377,7 +400,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         func cancelPresentation(_ picker: PHPickerViewController) {
             guard !didResolve else { return }
             picker.dismiss(animated: true)
-            finish(.failure(.transientFailure("media import presentation was cancelled")))
+            finish(.failure(.transientFailure))
         }
 
         private func finish(_ result: Result<RadrootsMediaImportResult, RadrootsCaptureIntakeError>) {
@@ -391,7 +414,9 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
     }
 
     @MainActor
-    private final class RadrootsAppleCameraCaptureCoordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    private final class RadrootsAppleCameraCaptureCoordinator: NSObject,
+        UIImagePickerControllerDelegate, UINavigationControllerDelegate
+    {
         var completion: (@Sendable (Result<RadrootsMediaCaptureResult, RadrootsCaptureIntakeError>) -> Void)?
 
         private let writer: RadrootsAppleMediaAssetWriter
@@ -412,7 +437,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             picker.dismiss(animated: true)
-            finish(.failure(.userCancelled("camera photo capture was cancelled")))
+            finish(.failure(.userCancelled))
         }
 
         func imagePickerController(
@@ -427,7 +452,9 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             }
         }
 
-        private func buildAsset(info: [UIImagePickerController.InfoKey: Any]) throws -> RadrootsMediaAsset {
+        private func buildAsset(info: [UIImagePickerController.InfoKey: Any]) throws
+            -> RadrootsMediaAsset
+        {
             if let imageURL = info[.imageURL] as? URL {
                 return try writer.persistExternalImage(
                     sourceURL: imageURL,
@@ -440,7 +467,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             guard let image = (info[.editedImage] as? UIImage) ?? (info[.originalImage] as? UIImage),
                   let jpegData = image.jpegData(compressionQuality: 0.92)
             else {
-                throw RadrootsCaptureIntakeError.transientFailure("camera photo capture finished without a usable image")
+                throw RadrootsCaptureIntakeError.transientFailure
             }
             return try writer.persistCapturedJPEG(
                 data: jpegData,
@@ -452,7 +479,7 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
         func cancelPresentation(_ picker: UIImagePickerController) {
             guard !didResolve else { return }
             picker.dismiss(animated: true)
-            finish(.failure(.transientFailure("camera photo capture presentation was cancelled")))
+            finish(.failure(.transientFailure))
         }
 
         private func finish(_ result: Result<RadrootsMediaCaptureResult, RadrootsCaptureIntakeError>) {
@@ -539,7 +566,8 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
                 fallbackBasename: "captured_photo",
                 fallbackExtension: "jpg"
             )
-            let file = try destinationFile(source: .cameraCapture, scope: destinationScope, filename: filename)
+            let file = try destinationFile(
+                source: .cameraCapture, scope: destinationScope, filename: filename)
             try fileAccess.write(.inline(data), to: file)
             return try RadrootsMediaAsset(
                 source: .cameraCapture,
@@ -548,8 +576,10 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
                 mediaType: "image/jpeg",
                 suggestedFilename: filename,
                 sizeBytes: UInt64(data.count),
-                pixelWidth: image.cgImage.map { UInt32($0.width) } ?? positiveRoundedUInt32(image.size.width),
-                pixelHeight: image.cgImage.map { UInt32($0.height) } ?? positiveRoundedUInt32(image.size.height),
+                pixelWidth: image.cgImage.map { UInt32($0.width) }
+                    ?? positiveRoundedUInt32(image.size.width),
+                pixelHeight: image.cgImage.map { UInt32($0.height) }
+                    ?? positiveRoundedUInt32(image.size.height),
                 capturedAt: Date()
             )
         }
@@ -560,7 +590,8 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
         scope: RadrootsFileScope,
         filename: String
     ) throws -> RadrootsFileReference {
-        let namespace = switch source {
+        let namespace =
+            switch source {
         case .libraryImport:
             "library_import"
         case .cameraCapture:
@@ -569,7 +600,8 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
         let validatedFilename = try RadrootsCaptureIntakeValidation.normalizedFilename(filename)
         return RadrootsFileReference(
             scope: scope,
-            relativePath: "capture_intake/media/\(namespace)/\(UUID().uuidString.lowercased())/\(validatedFilename)"
+            relativePath:
+                "capture_intake/media/\(namespace)/\(UUID().uuidString.lowercased())/\(validatedFilename)"
         )
     }
 
@@ -583,11 +615,8 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
         let lastComponent = URL(fileURLWithPath: trimmed).lastPathComponent
         let raw = lastComponent.isEmpty || lastComponent == "/" ? fallback : lastComponent
         let sanitizedScalars = raw.unicodeScalars.map { scalar -> Character in
-            if CharacterSet.controlCharacters.contains(scalar) ||
-                scalar == "/" ||
-                scalar == "\\" ||
-                scalar == "\0" ||
-                scalar == ":"
+            if CharacterSet.controlCharacters.contains(scalar) || scalar == "/" || scalar == "\\"
+                || scalar == "\0" || scalar == ":"
             {
                 return "_"
             }
@@ -633,7 +662,8 @@ private final class RadrootsAppleMediaAssetWriter: @unchecked Sendable {
     private func imageDimensions(fileURL: URL) -> (width: UInt32, height: UInt32)? {
         #if canImport(ImageIO)
             guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
-                  let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+                let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
+                    as? [CFString: Any],
                   let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
                   let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
                   width.uint32Value > 0,
@@ -659,7 +689,8 @@ enum RadrootsAppleCaptureAsyncSupport {
     static func awaitMainActorCallback<Value: Sendable>(
         timeout: TimeInterval,
         timeoutMessage: String,
-        operation: @escaping @MainActor (
+        operation:
+            @escaping @MainActor (
             @escaping @Sendable (Result<Value, RadrootsCaptureIntakeError>) -> Void,
             @escaping @MainActor @Sendable (@escaping @MainActor @Sendable () -> Void) -> Void
         ) -> Void
@@ -675,7 +706,7 @@ enum RadrootsAppleCaptureAsyncSupport {
                     } catch {
                         return
                     }
-                    state.resolve(.failure(.transientFailure(timeoutMessage)))
+                    state.resolve(.failure(.transientFailure))
                 }
                 Task { @MainActor in
                     operation(
@@ -690,7 +721,7 @@ enum RadrootsAppleCaptureAsyncSupport {
                 }
             }
         } onCancel: {
-            state.resolve(.failure(.userCancelled("capture request was cancelled")))
+            state.resolve(.failure(.userCancelled))
         }
     }
 }
@@ -767,9 +798,9 @@ private final class RadrootsAppleCaptureAsyncCallbackState<Value: Sendable>: @un
         with result: Result<Value, RadrootsCaptureIntakeError>
     ) {
         switch result {
-        case let .success(value):
+        case .success(let value):
             continuation.resume(returning: value)
-        case let .failure(error):
+        case .failure(let error):
             continuation.resume(throwing: error)
         }
     }

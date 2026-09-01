@@ -1,11 +1,12 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func captureAsyncSupportRunsCleanupOnTimeout() async throws {
     let probe = RadrootsCaptureCleanupProbe()
 
-    await #expect(throws: RadrootsCaptureIntakeError.transientFailure("timeout")) {
+    await #expect(throws: RadrootsCaptureIntakeError.transientFailure) {
         let _: Int = try await RadrootsAppleCaptureAsyncSupport.awaitMainActorCallback(
             timeout: 0.001,
             timeoutMessage: "timeout"
@@ -54,7 +55,7 @@ import Testing
 
     task.cancel()
 
-    await #expect(throws: RadrootsCaptureIntakeError.userCancelled("capture request was cancelled")) {
+    await #expect(throws: RadrootsCaptureIntakeError.userCancelled) {
         _ = try await task.value
     }
     try await Task.sleep(nanoseconds: 20_000_000)
@@ -71,10 +72,10 @@ import Testing
         #expect(support.supportedImportKinds.isEmpty)
         #expect(support.supportedCaptureKinds.isEmpty)
 
-        await #expect(throws: RadrootsCaptureIntakeError.unavailable("media import is unavailable")) {
+        await #expect(throws: RadrootsCaptureIntakeError.unavailable) {
             _ = try await picker.importMedia(RadrootsMediaImportRequest())
         }
-        await #expect(throws: RadrootsCaptureIntakeError.unavailable("camera photo capture is unavailable")) {
+        await #expect(throws: RadrootsCaptureIntakeError.unavailable) {
             _ = try await picker.captureMedia(RadrootsMediaCaptureRequest())
         }
     }

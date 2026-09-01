@@ -28,8 +28,7 @@ import Testing
 
   _ = try await transfer.enqueue(request)
   await #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer identifier already exists")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try await transfer.enqueue(request)
   }
@@ -41,20 +40,20 @@ import Testing
   let store = RadrootsInMemoryBackgroundTransferStore()
   let probe = RadrootsAppleBackgroundTransferProbe(
     now: Date(timeIntervalSince1970: 200),
-    enqueueOutcome: .failure(.transferFailure("adapter rejected transfer"))
+        enqueueOutcome: .failure(.transferFailure)
   )
   let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: probe.adapters())
   let request = try appleTransferRequest(identifier: "field.transfer.failed")
 
   await #expect(
-    throws: RadrootsBackgroundTransferError.transferFailure("background transfer enqueue failed")
+        throws: RadrootsBackgroundTransferError.transferFailure
   ) {
     _ = try await transfer.enqueue(request)
   }
 
   let snapshot = try await transfer.snapshot(for: request.identifier)
   #expect(snapshot?.state == .failed)
-  #expect(snapshot?.errorMessage == "background_transfer_enqueue_failed")
+    #expect(snapshot?.failure == .enqueueFailed)
   #expect(snapshot?.updatedAt == Date(timeIntervalSince1970: 200))
 }
 
@@ -105,7 +104,7 @@ import Testing
   let snapshot = try #require(try await transfer.snapshots().first)
 
   #expect(snapshot.state == .interrupted)
-  #expect(snapshot.errorMessage == "background_transfer_interrupted")
+    #expect(snapshot.failure == .interrupted)
   #expect(snapshot.possibleRemoteOrphan)
   #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 401))
 }
@@ -190,7 +189,7 @@ import Testing
 
   let snapshot = try #require(try await store.loadSnapshots().first)
   #expect(snapshot.state == .failed)
-  #expect(snapshot.errorMessage == "background_transfer_response_media_type")
+    #expect(snapshot.failure == .responseMediaType)
   #expect(snapshot.possibleRemoteOrphan)
 }
 
@@ -217,7 +216,7 @@ import Testing
 
   let snapshot = try await store.loadSnapshots().first
   #expect(snapshot?.state == .failed)
-  #expect(snapshot?.errorMessage == "background_transfer_download_staging_failure")
+    #expect(snapshot?.failure == .downloadStagingFailure)
   #expect(snapshot?.updatedAt == Date(timeIntervalSince1970: 600))
 }
 
@@ -314,7 +313,7 @@ import Testing
 
   let snapshot = try #require(try await store.loadSnapshots().first)
   #expect(snapshot.state == .failed)
-  #expect(snapshot.errorMessage == "background_transfer_response_content_encoding")
+    #expect(snapshot.failure == .responseContentEncoding)
   #expect(snapshot.possibleRemoteOrphan)
 }
 
@@ -336,7 +335,7 @@ import Testing
     totalBytesExpected: 10
   )
   #expect(
-    try await store.loadSnapshots().first?.errorMessage == "background_transfer_http_status_503")
+        try await store.loadSnapshots().first?.failure == .httpStatus)
 
   let bodyRequest = try appleUploadRequest(
     identifier: "field.transfer.upload.oversized",
@@ -354,7 +353,7 @@ import Testing
   let oversized = try #require(
     try await store.loadSnapshots().first { $0.identifier == bodyRequest.identifier })
   #expect(oversized.state == .failed)
-  #expect(oversized.errorMessage == "background_transfer_response_too_large")
+    #expect(oversized.failure == .responseTooLarge)
   #expect(oversized.possibleRemoteOrphan)
 }
 
@@ -420,11 +419,13 @@ import Testing
   let secondCompletion = RadrootsCompletionProbe()
   let unrelated = RadrootsCompletionProbe()
 
-  await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
-  { completion.markCompleted() }
+    await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer") {
+        completion.markCompleted()
+    }
   #expect(!completion.completed)
-  await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
-  { secondCompletion.markCompleted() }
+    await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer") {
+        secondCompletion.markCompleted()
+    }
 
   await coordinator.handleBackgroundEvents(identifier: "other.session") {
     unrelated.markCompleted()
@@ -449,8 +450,9 @@ import Testing
   let completion = RadrootsCompletionProbe()
 
   await coordinator.finishBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
-  await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
-  { completion.markCompleted() }
+    await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer") {
+        completion.markCompleted()
+    }
 
   #expect(completion.completionCount == 1)
 }
@@ -477,8 +479,7 @@ import Testing
   #expect(try await store.loadSnapshots().first?.state == .completed)
   #expect(try await store.loadSnapshots().first?.response == response)
   await #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer is not awaiting verification")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     try await transfer.settle(request.identifier, verification: .accepted)
   }
@@ -504,12 +505,12 @@ import Testing
 
   try await transfer.settle(
     request.identifier,
-    verification: .rejected(code: "background_transfer_rust_verification_failed")
+        verification: .rejected(failure: .verificationRejected)
   )
 
   let snapshot = try #require(try await store.loadSnapshots().first)
   #expect(snapshot.state == .failed)
-  #expect(snapshot.errorMessage == "background_transfer_rust_verification_failed")
+    #expect(snapshot.failure == .verificationRejected)
   #expect(snapshot.possibleRemoteOrphan)
   #expect(snapshot.response == nil)
 }
@@ -540,7 +541,7 @@ import Testing
   let transfer = RadrootsAppleBackgroundTransfer(store: store, adapters: probe.adapters())
 
   await #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest("background transfer is still active")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try await transfer.retry(request)
   }
@@ -585,7 +586,7 @@ import Testing
 
   let snapshot = try #require(try await store.loadSnapshots().first)
   #expect(snapshot.state == .failed)
-  #expect(snapshot.errorMessage == "background_transfer_transfer_too_large")
+    #expect(snapshot.failure == .transferTooLarge)
   #expect(snapshot.possibleRemoteOrphan)
 }
 
@@ -640,8 +641,7 @@ import Testing
     var snapshot = try await transfer.snapshot(for: request.identifier)
     while snapshot?.state == .queued || snapshot?.state == .running {
       guard Date() < deadline else {
-        throw RadrootsBackgroundTransferError.transferFailure(
-          "background_transfer_live_test_timed_out")
+                throw RadrootsBackgroundTransferError.transferFailure
       }
       try await Task.sleep(nanoseconds: 50_000_000)
       snapshot = try await transfer.snapshot(for: request.identifier)
@@ -822,8 +822,7 @@ private func appleTransferRoots() throws -> RadrootsAppleFileRoots {
   )
   try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: false)
   guard let resolvedPointer = unresolvedRoot.path.withCString({ Darwin.realpath($0, nil) }) else {
-    throw RadrootsBackgroundTransferError.persistenceFailure(
-      "background transfer test root is unavailable")
+        throw RadrootsBackgroundTransferError.persistenceFailure
   }
   defer { Darwin.free(resolvedPointer) }
   let root = URL(fileURLWithPath: String(cString: resolvedPointer), isDirectory: true)

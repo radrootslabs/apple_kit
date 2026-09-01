@@ -6,20 +6,17 @@ public enum RadrootsBackgroundTaskKind: String, Sendable, Equatable, Hashable, C
 }
 
 public enum RadrootsBackgroundTaskError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case unavailable(String)
-    case schedulerFailure(String)
+    case invalidRequest
+    case unavailable
+    case schedulerFailure
 }
 
 extension RadrootsBackgroundTaskError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .unavailable(message):
-            message
-        case let .schedulerFailure(message):
-            message
+        case .invalidRequest: "The background task request is invalid."
+        case .unavailable: "Background tasks are unavailable."
+        case .schedulerFailure: "The background task could not be scheduled."
         }
     }
 }
@@ -103,7 +100,7 @@ public struct RadrootsBackgroundTaskSnapshot: Sendable, Equatable, Hashable {
             requiresExternalPower: requiresExternalPower
         )
         guard submittedAt.timeIntervalSinceReferenceDate.isFinite else {
-            throw RadrootsBackgroundTaskError.invalidRequest("background task submitted date must be finite")
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
         self.identifier = identifier
         self.kind = kind
@@ -126,34 +123,32 @@ public struct RadrootsBackgroundTaskSnapshot: Sendable, Equatable, Hashable {
 }
 
 public protocol RadrootsBackgroundTaskScheduler: Sendable {
-    func submit(_ request: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot
+    func submit(_ request: RadrootsBackgroundTaskRequest) async throws
+        -> RadrootsBackgroundTaskSnapshot
     func cancel(_ identifier: RadrootsBackgroundTaskIdentifier) async throws
     func cancelAll() async throws
     func pendingTasks() async throws -> [RadrootsBackgroundTaskSnapshot]
 }
 
 public struct RadrootsUnavailableBackgroundTaskScheduler: RadrootsBackgroundTaskScheduler, Sendable {
-    private let reason: String
+    public init() {}
 
-    public init(reason: String = "background task scheduling is unavailable on this platform") {
-        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.reason = trimmedReason.isEmpty ? "background task scheduling is unavailable on this platform" : trimmedReason
-    }
-
-    public func submit(_: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot {
-        throw RadrootsBackgroundTaskError.unavailable(reason)
+    public func submit(_: RadrootsBackgroundTaskRequest) async throws
+        -> RadrootsBackgroundTaskSnapshot
+    {
+        throw RadrootsBackgroundTaskError.unavailable
     }
 
     public func cancel(_: RadrootsBackgroundTaskIdentifier) async throws {
-        throw RadrootsBackgroundTaskError.unavailable(reason)
+        throw RadrootsBackgroundTaskError.unavailable
     }
 
     public func cancelAll() async throws {
-        throw RadrootsBackgroundTaskError.unavailable(reason)
+        throw RadrootsBackgroundTaskError.unavailable
     }
 
     public func pendingTasks() async throws -> [RadrootsBackgroundTaskSnapshot] {
-        throw RadrootsBackgroundTaskError.unavailable(reason)
+        throw RadrootsBackgroundTaskError.unavailable
     }
 }
 
@@ -161,19 +156,21 @@ public enum RadrootsBackgroundTaskValidation {
     public static func normalizedIdentifier(_ value: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !trimmed.isEmpty else {
-            throw RadrootsBackgroundTaskError.invalidRequest("background task identifier must not be empty")
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
         guard trimmed.count <= 255 else {
-            throw RadrootsBackgroundTaskError.invalidRequest("background task identifier is too long")
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
-        guard trimmed.range(
+        guard
+            trimmed.range(
             of: "^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$",
             options: .regularExpression
-        ) != nil else {
-            throw RadrootsBackgroundTaskError.invalidRequest("background task identifier must use lowercase safe identifier characters")
+            ) != nil
+        else {
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
         guard !trimmed.contains("..") else {
-            throw RadrootsBackgroundTaskError.invalidRequest("background task identifier cannot contain empty path components")
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
         return trimmed
     }
@@ -186,11 +183,11 @@ public enum RadrootsBackgroundTaskValidation {
     ) throws {
         if let earliestBeginDate {
             guard earliestBeginDate.timeIntervalSinceReferenceDate.isFinite else {
-                throw RadrootsBackgroundTaskError.invalidRequest("background task earliest begin date must be finite")
+                throw RadrootsBackgroundTaskError.invalidRequest
             }
         }
         guard kind == .processing || (!requiresNetworkConnectivity && !requiresExternalPower) else {
-            throw RadrootsBackgroundTaskError.invalidRequest("app refresh tasks cannot require network connectivity or external power")
+            throw RadrootsBackgroundTaskError.invalidRequest
         }
     }
 }

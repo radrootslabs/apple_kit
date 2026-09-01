@@ -1,35 +1,27 @@
 import Foundation
 
 public enum RadrootsAppleSecurityError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case notFound(String)
-    case permissionDenied(String)
-    case userCancelled(String)
-    case transientFailure(String)
-    case unavailable(String)
-    case permanentFailure(String)
-    case keychainStatus(Int32, String)
+    case invalidRequest
+    case notFound
+    case permissionDenied
+    case userCancelled
+    case transientFailure
+    case unavailable
+    case permanentFailure
+    case keychainFailure
 }
 
 extension RadrootsAppleSecurityError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .notFound(message):
-            message
-        case let .permissionDenied(message):
-            message
-        case let .userCancelled(message):
-            message
-        case let .transientFailure(message):
-            message
-        case let .unavailable(message):
-            message
-        case let .permanentFailure(message):
-            message
-        case let .keychainStatus(_, message):
-            message
+        case .invalidRequest: "The secure-store request is invalid."
+        case .notFound: "The secure-store item was not found."
+        case .permissionDenied: "Secure-store access was denied."
+        case .userCancelled: "Secure-store access was cancelled."
+        case .transientFailure: "The secure-store operation could not be completed temporarily."
+        case .unavailable: "The secure store is unavailable."
+        case .permanentFailure: "The secure-store operation could not be completed."
+        case .keychainFailure: "The secure-store operation failed."
         }
     }
 }

@@ -4,15 +4,17 @@ import ImageIO
 import UniformTypeIdentifiers
 
 public enum RadrootsAppleMediaPreparationError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case unavailable(String)
-    case preparationFailure(String)
+    case invalidRequest
+    case unavailable
+    case preparationFailure
 }
 
 extension RadrootsAppleMediaPreparationError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message), let .unavailable(message), let .preparationFailure(message): message
+        case .invalidRequest: "The media preparation request is invalid."
+        case .unavailable: "Media preparation is unavailable."
+        case .preparationFailure: "The media could not be prepared."
         }
     }
 }
@@ -30,9 +32,9 @@ public struct RadrootsAppleImagePreparationRequest: Sendable, Equatable, Hashabl
     ) throws {
         guard (1 ... (40 * 1024 * 1024)).contains(maximumInputBytes), (1 ... (10 * 1024 * 1024)).contains(maximumOutputBytes),
               (1 ... 40_000_000).contains(maximumPixelCount), (1 ... 8192).contains(maximumDimension)
-        else { throw RadrootsAppleMediaPreparationError.invalidRequest("image preparation limits are invalid") }
+        else { throw RadrootsAppleMediaPreparationError.invalidRequest }
         do { try RadrootsBackgroundTransferValidation.validateLocalFile(source) } catch {
-            throw RadrootsAppleMediaPreparationError.invalidRequest("image source handle is invalid")
+            throw RadrootsAppleMediaPreparationError.invalidRequest
         }
         self.source = source
         self.maximumInputBytes = maximumInputBytes
@@ -42,16 +44,21 @@ public struct RadrootsAppleImagePreparationRequest: Sendable, Equatable, Hashabl
     }
 }
 
-public struct RadrootsApplePreparedImage: Sendable, Equatable, Hashable, CustomDebugStringConvertible {
+public struct RadrootsApplePreparedImage: Sendable, Equatable, Hashable,
+    CustomDebugStringConvertible
+{
     public let file: RadrootsStagedBlobReference
     public let sha256: String
     public let width: UInt32
     public let height: UInt32
 
-    public init(file: RadrootsStagedBlobReference, sha256: String, width: UInt32, height: UInt32) throws {
-        guard sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil, width > 0, height > 0, file.sizeBytes > 0,
+    public init(file: RadrootsStagedBlobReference, sha256: String, width: UInt32, height: UInt32)
+        throws
+    {
+        guard sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil, width > 0,
+            height > 0, file.sizeBytes > 0,
               file.mediaType == "image/png"
-        else { throw RadrootsAppleMediaPreparationError.invalidRequest("prepared image commitment is invalid") }
+        else { throw RadrootsAppleMediaPreparationError.invalidRequest }
         self.file = file
         self.sha256 = sha256
         self.width = width
@@ -70,7 +77,8 @@ public actor RadrootsAppleMediaPreparer {
     private let protectedData: RadrootsProtectedDataProvider
 
     public init(
-        roots: RadrootsAppleFileRoots, fileManager: FileManager = .default, protectedData: RadrootsProtectedDataProvider = .available
+        roots: RadrootsAppleFileRoots, fileManager: FileManager = .default,
+        protectedData: RadrootsProtectedDataProvider = .available
     ) {
         self.roots = roots
         resolver = RadrootsAppleBackgroundTransferFileResolver(roots: roots)
@@ -78,41 +86,56 @@ public actor RadrootsAppleMediaPreparer {
         self.protectedData = protectedData
     }
 
-    public func prepareImage(_ request: RadrootsAppleImagePreparationRequest) async throws -> RadrootsApplePreparedImage {
-        do { return try await prepareValidatedImage(request) } catch is CancellationError { throw CancellationError() } catch let error
+    public func prepareImage(_ request: RadrootsAppleImagePreparationRequest) async throws
+        -> RadrootsApplePreparedImage
+    {
+        do { return try await prepareValidatedImage(request) } catch is CancellationError {
+            throw CancellationError()
+        } catch let error
             as RadrootsAppleMediaPreparationError
-        { throw error } catch { throw RadrootsAppleMediaPreparationError.preparationFailure("image preparation failed") }
+        { throw error } catch { throw RadrootsAppleMediaPreparationError.preparationFailure }
     }
 
-    private func prepareValidatedImage(_ request: RadrootsAppleImagePreparationRequest) async throws -> RadrootsApplePreparedImage {
+    private func prepareValidatedImage(_ request: RadrootsAppleImagePreparationRequest) async throws
+        -> RadrootsApplePreparedImage
+    {
         try Task.checkCancellation()
         try requireProtectedData()
         let sourceData: Data
         do {
             sourceData = try resolver.read(request.source, maximumBytes: request.maximumInputBytes)
         } catch {
-            throw RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit")
+            throw RadrootsAppleMediaPreparationError.invalidRequest
         }
         guard !sourceData.isEmpty else {
-            throw RadrootsAppleMediaPreparationError.invalidRequest("image source is unavailable or exceeds its byte limit")
+            throw RadrootsAppleMediaPreparationError.invalidRequest
         }
-        guard let source = CGImageSourceCreateWithData(sourceData as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+        guard
+            let source = CGImageSourceCreateWithData(
+                sourceData as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
               CGImageSourceGetCount(source) == 1
-        else { throw RadrootsAppleMediaPreparationError.invalidRequest("image source must contain exactly one decodable image") }
+        else { throw RadrootsAppleMediaPreparationError.invalidRequest }
         let dimensions = try Self.sourceDimensions(source)
         guard dimensions.pixelCount <= request.maximumPixelCount else {
-            throw RadrootsAppleMediaPreparationError.invalidRequest("image source exceeds its pixel limit")
+            throw RadrootsAppleMediaPreparationError.invalidRequest
         }
         let thumbnailOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true, kCGImageSourceThumbnailMaxPixelSize: request.maximumDimension,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: request.maximumDimension,
         ]
-        guard let normalizedImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
-            throw RadrootsAppleMediaPreparationError.preparationFailure("image normalization failed")
+        guard
+            let normalizedImage = CGImageSourceCreateThumbnailAtIndex(
+                source, 0, thumbnailOptions as CFDictionary)
+        else {
+            throw RadrootsAppleMediaPreparationError.preparationFailure
         }
         try Task.checkCancellation()
 
-        let temporaryURL = roots.temporaryRoot.appendingPathComponent("media_preparation", isDirectory: true).appendingPathComponent(
+        let temporaryURL = roots.temporaryRoot.appendingPathComponent(
+            "media_preparation", isDirectory: true
+        ).appendingPathComponent(
             "\(UUID().uuidString.lowercased()).png"
         ).standardizedFileURL
         defer {
@@ -120,23 +143,28 @@ public actor RadrootsAppleMediaPreparer {
                 try? fileManager.removeItem(at: temporaryURL)
             }
         }
-        try fileManager.createDirectory(at: temporaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: temporaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         #if os(iOS)
             try fileManager.setAttributes(
-                [.protectionKey: FileProtectionType.complete], ofItemAtPath: temporaryURL.deletingLastPathComponent().path
+                [.protectionKey: FileProtectionType.complete],
+                ofItemAtPath: temporaryURL.deletingLastPathComponent().path
             )
         #endif
-        guard let destination = CGImageDestinationCreateWithURL(temporaryURL as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            throw RadrootsAppleMediaPreparationError.preparationFailure("image destination could not be created")
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                temporaryURL as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else {
+            throw RadrootsAppleMediaPreparationError.preparationFailure
         }
         CGImageDestinationAddImage(destination, normalizedImage, [:] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            throw RadrootsAppleMediaPreparationError.preparationFailure("image encoding failed")
+            throw RadrootsAppleMediaPreparationError.preparationFailure
         }
         try Task.checkCancellation()
         let outputSize = try Self.fileSize(at: temporaryURL)
         guard outputSize > 0, outputSize <= request.maximumOutputBytes else {
-            throw RadrootsAppleMediaPreparationError.invalidRequest("normalized image exceeds its byte limit")
+            throw RadrootsAppleMediaPreparationError.invalidRequest
         }
         let digest = try RadrootsAppleFileDigest.sha256(at: temporaryURL)
         let staged = try RadrootsStagedBlobReference(
@@ -156,11 +184,13 @@ public actor RadrootsAppleMediaPreparer {
         }
         #if os(iOS)
             try fileManager.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: stagedURL.path
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: stagedURL.path
             )
         #endif
         return try RadrootsApplePreparedImage(
-            file: staged, sha256: digest, width: UInt32(normalizedImage.width), height: UInt32(normalizedImage.height)
+            file: staged, sha256: digest, width: UInt32(normalizedImage.width),
+            height: UInt32(normalizedImage.height)
         )
     }
 
@@ -175,35 +205,42 @@ public actor RadrootsAppleMediaPreparer {
             )
             guard preparedData.count == preparedImage.file.sizeBytes,
                   RadrootsAppleFileDigest.sha256(preparedData) == preparedImage.sha256
-            else { throw RadrootsAppleMediaPreparationError.invalidRequest("prepared image no longer matches its commitment") }
+            else { throw RadrootsAppleMediaPreparationError.invalidRequest }
             return try RadrootsBackgroundTransferRequest(
-                identifier: identifier, remoteURL: remoteURL, method: .put, operation: .upload(source: .stagedBlob(preparedImage.file)),
+                identifier: identifier, remoteURL: remoteURL, method: .put,
+                operation: .upload(source: .stagedBlob(preparedImage.file)),
                 headers: ["Authorization": authorization, "Content-Type": "image/png"],
-                metadata: ["purpose": "blossom_upload", "sha256": preparedImage.sha256], networkPolicy: networkPolicy,
+                metadata: ["purpose": "blossom_upload", "sha256": preparedImage.sha256],
+                networkPolicy: networkPolicy,
                 responsePolicy: .boundedJSON(), expectedSourceSHA256: preparedImage.sha256
             )
-        } catch let error as RadrootsAppleMediaPreparationError { throw error } catch let error as RadrootsBackgroundTransferError {
+        } catch let error as RadrootsAppleMediaPreparationError { throw error } catch let error
+            as RadrootsBackgroundTransferError
+        {
             throw error
-        } catch { throw RadrootsAppleMediaPreparationError.preparationFailure("prepared image commitment could not be verified") }
+        } catch { throw RadrootsAppleMediaPreparationError.preparationFailure }
     }
 
     private func requireProtectedData() throws {
         guard protectedData.currentState() == .available else {
-            throw RadrootsAppleMediaPreparationError.unavailable("image preparation protected data is unavailable")
+            throw RadrootsAppleMediaPreparationError.unavailable
         }
     }
 
-    private static func sourceDimensions(_ source: CGImageSource) throws -> (width: Int, height: Int, pixelCount: Int) {
+    private static func sourceDimensions(_ source: CGImageSource) throws -> (
+        width: Int, height: Int, pixelCount: Int
+    ) {
         guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
-              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue, width > 0, height > 0, width <= Int.max / height
-        else { throw RadrootsAppleMediaPreparationError.invalidRequest("image dimensions are invalid") }
+            let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue, width > 0,
+            height > 0, width <= Int.max / height
+        else { throw RadrootsAppleMediaPreparationError.invalidRequest }
         return (width, height, width * height)
     }
 
     private static func fileSize(at url: URL) throws -> Int {
         guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-            throw RadrootsAppleMediaPreparationError.preparationFailure("prepared image size is unavailable")
+            throw RadrootsAppleMediaPreparationError.preparationFailure
         }
         return size
     }

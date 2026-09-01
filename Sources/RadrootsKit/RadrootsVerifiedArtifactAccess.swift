@@ -8,6 +8,18 @@ public enum RadrootsVerifiedArtifactAccessError: Error, Equatable, Sendable {
   case fileSystemFailure
 }
 
+extension RadrootsVerifiedArtifactAccessError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidDescriptor: "The verified-artifact descriptor is invalid."
+        case .protectedDataUnavailable: "Protected data is unavailable."
+        case .artifactUnavailable: "The verified artifact is unavailable."
+        case .artifactCorrupt: "The verified artifact is corrupt."
+        case .fileSystemFailure: "The verified artifact could not be opened."
+        }
+    }
+}
+
 public struct RadrootsVerifiedArtifactDescriptor: Sendable, Equatable, Hashable {
   public let artifactID: String
   public let byteSize: UInt64

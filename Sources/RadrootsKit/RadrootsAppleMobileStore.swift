@@ -31,6 +31,17 @@ public enum RadrootsAppleMobileStoreError: Error, Sendable, Equatable {
     case fileSystemFailure
 }
 
+extension RadrootsAppleMobileStoreError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidPublicKey: "The public key is invalid."
+        case .protectedDataUnavailable: "Protected data is unavailable."
+        case .invalidDirectoryLayout: "The mobile-store directory layout is invalid."
+        case .fileSystemFailure: "The mobile store could not be prepared."
+        }
+    }
+}
+
 public enum RadrootsAppleMobileStore {
     private static let productDirectory = "radroots"
     private static let userDirectory = "users"

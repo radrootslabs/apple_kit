@@ -4,10 +4,8 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
   public let now: @Sendable () -> Date
   public let enqueue: @Sendable (RadrootsBackgroundTransferRequest) async throws -> Void
   public let cancel: @Sendable (RadrootsBackgroundTransferIdentifier) async throws -> Void
-  public let activeTransferIdentifiers:
-    @Sendable () async throws -> Set<RadrootsBackgroundTransferIdentifier>
-  public let handleBackgroundEvents:
-    @Sendable (String, @escaping @Sendable () -> Void) async -> Void
+    public let activeTransferIdentifiers: @Sendable () async throws -> Set<RadrootsBackgroundTransferIdentifier>
+    public let handleBackgroundEvents: @Sendable (String, @escaping @Sendable () -> Void) async -> Void
 
   public init(
     now: @escaping @Sendable () -> Date = Date.init,
@@ -27,16 +25,13 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
 
   public static let unavailable = Self(
     enqueue: { _ in
-      throw RadrootsBackgroundTransferError.unavailable(
-        "background transfer is unavailable on this platform")
+            throw RadrootsBackgroundTransferError.unavailable
     },
     cancel: { _ in
-      throw RadrootsBackgroundTransferError.unavailable(
-        "background transfer is unavailable on this platform")
+            throw RadrootsBackgroundTransferError.unavailable
     },
     activeTransferIdentifiers: {
-      throw RadrootsBackgroundTransferError.unavailable(
-        "background transfer is unavailable on this platform")
+            throw RadrootsBackgroundTransferError.unavailable
     }, handleBackgroundEvents: { _, completionHandler in completionHandler() }
   )
 
@@ -128,11 +123,10 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     -> RadrootsBackgroundTransferHandle
   {
     guard
-      try await store.loadSnapshots().contains(where: { $0.identifier == request.identifier })
+            try await loadStoredSnapshots().contains(where: { $0.identifier == request.identifier })
         == false
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer identifier already exists")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     return try await schedule(request)
   }
@@ -141,23 +135,23 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     -> RadrootsBackgroundTransferHandle
   {
     guard
-      let existing = try await store.loadSnapshots().first(where: {
+            let existing = try await loadStoredSnapshots().first(where: {
         $0.identifier == request.identifier
       }),
       existing.state == .failed || existing.state == .interrupted || existing.state == .cancelled
         || existing.state == .expired,
       try existing.request.redactedForPersistence() == request.redactedForPersistence()
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest("background transfer is not retryable")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     do {
       guard try await !adapters.activeTransferIdentifiers().contains(request.identifier) else {
-        throw RadrootsBackgroundTransferError.invalidRequest("background transfer is still active")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     } catch let error as RadrootsBackgroundTransferError {
       throw error
     } catch {
-      throw RadrootsBackgroundTransferError.transferFailure("background transfer recovery failed")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
     return try await schedule(request)
   }
@@ -165,26 +159,25 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
   private func schedule(_ request: RadrootsBackgroundTransferRequest) async throws
     -> RadrootsBackgroundTransferHandle
   {
-    try await store.saveSnapshot(
+        try await saveStoredSnapshot(
       RadrootsBackgroundTransferSnapshot(
         request: request, state: .queued, updatedAt: adapters.now()))
     do { try await adapters.enqueue(request) } catch {
       do {
-        try await store.saveSnapshot(
+                try await saveStoredSnapshot(
           RadrootsBackgroundTransferSnapshot(
-            request: request, state: .failed, errorMessage: "background_transfer_enqueue_failed",
+                        request: request, state: .failed, failure: .enqueueFailed,
             updatedAt: adapters.now()
           )
         )
       } catch {
-        throw RadrootsBackgroundTransferError.persistenceFailure(
-          "background transfer enqueue failure could not be persisted")
+                throw RadrootsBackgroundTransferError.persistenceFailure
       }
-      throw RadrootsBackgroundTransferError.transferFailure("background transfer enqueue failed")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
-    let current = try await store.loadSnapshots().first { $0.identifier == request.identifier }
+        let current = try await loadStoredSnapshots().first { $0.identifier == request.identifier }
     if current?.state == .queued {
-      try await store.saveSnapshot(
+            try await saveStoredSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: request, state: .running, updatedAt: adapters.now())
       )
@@ -193,12 +186,11 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
   }
 
   public func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
-    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
-    {
+        if let existing = try await loadStoredSnapshots().first(where: { $0.identifier == identifier }) {
       guard
         existing.state == .queued || existing.state == .running || existing.state == .interrupted
       else { return }
-      try await store.saveSnapshot(
+            try await saveStoredSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request, state: .cancelled, progress: existing.progress,
           possibleRemoteOrphan: existing.request.isUpload && existing.state == .running,
@@ -207,29 +199,26 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
       )
     }
     do { try await adapters.cancel(identifier) } catch {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background transfer cancellation failed")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
   }
 
   public func expire(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
-    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
-    {
+        if let existing = try await loadStoredSnapshots().first(where: { $0.identifier == identifier }) {
       guard
         existing.state == .queued || existing.state == .running || existing.state == .interrupted
       else { return }
-      try await store.saveSnapshot(
+            try await saveStoredSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request, state: .expired, progress: existing.progress,
-          errorMessage: "background_transfer_expired",
+                    failure: .expired,
           possibleRemoteOrphan: existing.request.isUpload && existing.state == .running,
           updatedAt: adapters.now()
         )
       )
     }
     do { try await adapters.cancel(identifier) } catch {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background transfer expiration cancellation failed")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
   }
 
@@ -238,31 +227,25 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     verification: RadrootsBackgroundTransferVerification
   ) async throws {
     guard
-      let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }),
+            let existing = try await loadStoredSnapshots().first(where: { $0.identifier == identifier }),
       existing.state == .awaitingVerification
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer is not awaiting verification")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     switch verification {
     case .accepted:
-      try await store.saveSnapshot(
+            try await saveStoredSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request, state: .completed, progress: existing.progress,
           response: existing.response,
           downloadedArtifact: existing.downloadedArtifact, updatedAt: adapters.now()
         )
       )
-    case .rejected(let code):
-      guard code.range(of: "^background_transfer_[a-z0-9_]+$", options: .regularExpression) != nil
-      else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer verification code is invalid")
-      }
-      try await store.saveSnapshot(
+        case .rejected(let failure):
+            try await saveStoredSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request, state: .failed, progress: existing.progress,
-          errorMessage: code,
+                    failure: failure,
           possibleRemoteOrphan: existing.request.isUpload, updatedAt: adapters.now()
         )
       )
@@ -278,14 +261,13 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
   public func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
     let activeIdentifiers: Set<RadrootsBackgroundTransferIdentifier>
     do { activeIdentifiers = try await adapters.activeTransferIdentifiers() } catch {
-      throw RadrootsBackgroundTransferError.transferFailure("background transfer recovery failed")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
-    let storedSnapshots = try await store.loadSnapshots()
+        let storedSnapshots = try await loadStoredSnapshots()
     let storedIdentifiers = Set(storedSnapshots.map(\.identifier))
     for orphanedIdentifier in activeIdentifiers.subtracting(storedIdentifiers) {
       do { try await adapters.cancel(orphanedIdentifier) } catch {
-        throw RadrootsBackgroundTransferError.transferFailure(
-          "background transfer orphan cancellation failed")
+                throw RadrootsBackgroundTransferError.transferFailure
       }
     }
     var reconciled: [RadrootsBackgroundTransferSnapshot] = []
@@ -295,21 +277,21 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
       {
         let runningSnapshot = try RadrootsBackgroundTransferSnapshot(
           request: snapshot.request, state: .running, progress: snapshot.progress,
-          errorMessage: snapshot.errorMessage,
+                    failure: snapshot.failure,
           updatedAt: adapters.now()
         )
-        try await store.saveSnapshot(runningSnapshot)
+                try await saveStoredSnapshot(runningSnapshot)
         reconciled.append(runningSnapshot)
       } else if !activeIdentifiers.contains(snapshot.identifier),
         snapshot.state == .queued || snapshot.state == .running
       {
         let interruptedSnapshot = try RadrootsBackgroundTransferSnapshot(
           request: snapshot.request, state: .interrupted, progress: snapshot.progress,
-          errorMessage: "background_transfer_interrupted",
+                    failure: .interrupted,
           possibleRemoteOrphan: snapshot.request.isUpload && snapshot.state == .running,
           updatedAt: adapters.now()
         )
-        try await store.saveSnapshot(interruptedSnapshot)
+                try await saveStoredSnapshot(interruptedSnapshot)
         reconciled.append(interruptedSnapshot)
       } else {
         reconciled.append(snapshot)
@@ -323,6 +305,26 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
   ) async {
     await adapters.handleBackgroundEvents(identifier, completionHandler)
   }
+
+    private func loadStoredSnapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
+        do {
+            return try await store.loadSnapshots()
+        } catch let error as RadrootsBackgroundTransferError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTransferError.persistenceFailure
+        }
+    }
+
+    private func saveStoredSnapshot(_ snapshot: RadrootsBackgroundTransferSnapshot) async throws {
+        do {
+            try await store.saveSnapshot(snapshot)
+        } catch let error as RadrootsBackgroundTransferError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTransferError.persistenceFailure
+        }
+    }
 }
 
 enum RadrootsStagedBackgroundDownloadResult: Sendable, Equatable {
@@ -391,7 +393,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     try? await store.saveSnapshot(
       try RadrootsBackgroundTransferSnapshot(
         request: existing.request, state: .running, progress: progress,
-        errorMessage: existing.errorMessage,
+                failure: existing.failure,
         response: existing.response, possibleRemoteOrphan: existing.possibleRemoteOrphan,
         updatedAt: now()
       )
@@ -414,7 +416,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
         existing: existing,
-        code: "background_transfer_transfer_too_large",
+                code: .transferTooLarge,
         possibleRemoteOrphan: existing.request.isUpload && bytesTransferred > 0
       )
       return
@@ -422,21 +424,21 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     if httpResult.bodyExceeded {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: "background_transfer_response_too_large",
+                existing: existing, code: .responseTooLarge,
         possibleRemoteOrphan: existing.request.isUpload)
       return
     }
     if httpResult.mediaTypeWasMalformed {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: "background_transfer_response_media_type",
+                existing: existing, code: .responseMediaType,
         possibleRemoteOrphan: existing.request.isUpload && bytesTransferred > 0)
       return
     }
     if platformError != nil {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: "background_transfer_platform_failure",
+                existing: existing, code: .platformFailure,
         possibleRemoteOrphan: existing.request.isUpload && bytesTransferred > 0
       )
       return
@@ -444,7 +446,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     guard let statusCode = httpResult.statusCode else {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: "background_transfer_response_missing",
+                existing: existing, code: .responseMissing,
         possibleRemoteOrphan: existing.request.isUpload && bytesTransferred > 0
       )
       return
@@ -453,7 +455,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
         existing: existing,
-        code: "background_transfer_http_status_\(statusCode)",
+                code: .httpStatus,
         possibleRemoteOrphan: existing.request.isUpload && bytesTransferred > 0
       )
       return
@@ -461,18 +463,16 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     let response: RadrootsBackgroundTransferResponse
     do {
       response = try Self.validatedResponse(for: existing.request, httpResult: httpResult)
-    } catch let transferError
-      as RadrootsBackgroundTransferError
-    {
+        } catch let validationError as RadrootsBackgroundResponseValidationError {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: transferError.stableCode,
+                existing: existing, code: validationError.failure,
         possibleRemoteOrphan: existing.request.isUpload)
       return
     } catch {
       Self.removeStagedDownload(stagedDownloadResult, fileManager: fileManager)
       await fail(
-        existing: existing, code: "background_transfer_response_invalid",
+                existing: existing, code: .responseInvalid,
         possibleRemoteOrphan: existing.request.isUpload)
       return
     }
@@ -491,8 +491,7 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     }
   }
 
-  func handleBackgroundEvents(identifier: String, completionHandler: @escaping @Sendable () -> Void)
-  {
+    func handleBackgroundEvents(identifier: String, completionHandler: @escaping @Sendable () -> Void) {
     guard identifier == sessionIdentifier else {
       completionHandler()
       return
@@ -547,19 +546,17 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     bytesTransferred: Int64, totalBytesExpected: Int64?
   ) async {
     guard case .file(let stagedFileURL) = stagedDownloadResult else {
-      await fail(existing: existing, code: "background_transfer_download_staging_failure")
+            await fail(existing: existing, code: .downloadStagingFailure)
       return
     }
     do {
       guard case .file(let destinationReference) = destination else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer download destination is invalid")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       let destinationURL = try fileResolver.resolve(destination)
       let fileSize = try Self.fileSize(at: stagedFileURL, fileManager: fileManager)
       guard fileSize > 0, UInt64(fileSize) <= existing.request.maximumTransferBytes else {
-        throw RadrootsBackgroundTransferError.transferFailure(
-          "background_transfer_transfer_too_large")
+                throw RadrootsBackgroundTransferError.transferFailure
       }
       let downloadedArtifact = try RadrootsBackgroundDownloadedArtifact(
         file: destinationReference,
@@ -591,16 +588,18 @@ actor RadrootsAppleBackgroundTransferCoordinator {
       )
     } catch {
       Self.removeStagedDownload(.file(stagedFileURL), fileManager: fileManager)
-      await fail(existing: existing, code: "background_transfer_destination_failure")
+            await fail(existing: existing, code: .destinationFailure)
     }
   }
 
   private func fail(
-    existing: RadrootsBackgroundTransferSnapshot, code: String, possibleRemoteOrphan: Bool = false
+        existing: RadrootsBackgroundTransferSnapshot,
+        code: RadrootsBackgroundTransferFailure,
+        possibleRemoteOrphan: Bool = false
   ) async {
     try? await store.saveSnapshot(
       try RadrootsBackgroundTransferSnapshot(
-        request: existing.request, state: .failed, progress: existing.progress, errorMessage: code,
+                request: existing.request, state: .failed, progress: existing.progress, failure: code,
         possibleRemoteOrphan: possibleRemoteOrphan, updatedAt: now()
       )
     )
@@ -664,28 +663,25 @@ actor RadrootsAppleBackgroundTransferCoordinator {
     -> RadrootsBackgroundTransferResponse
   {
     guard let statusCode = httpResult.statusCode else {
-      throw RadrootsBackgroundTransferError.transferFailure("background_transfer_response_missing")
+            throw RadrootsBackgroundResponseValidationError(failure: .responseMissing)
     }
     if request.responsePolicy == .discard {
       return try RadrootsBackgroundTransferResponse(
         statusCode: statusCode, mediaType: nil, contentEncoding: nil, body: nil)
     }
     guard let body = httpResult.body else {
-      throw RadrootsBackgroundTransferError.transferFailure("background_transfer_response_missing")
+            throw RadrootsBackgroundResponseValidationError(failure: .responseMissing)
     }
     guard let mediaType = httpResult.mediaType,
       request.responsePolicy.acceptedMediaTypes.contains(mediaType)
     else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background_transfer_response_media_type")
+            throw RadrootsBackgroundResponseValidationError(failure: .responseMediaType)
     }
     guard body.count <= request.responsePolicy.maximumBodyBytes else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background_transfer_response_too_large")
+            throw RadrootsBackgroundResponseValidationError(failure: .responseTooLarge)
     }
     guard httpResult.contentEncoding == nil || httpResult.contentEncoding == "identity" else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background_transfer_response_content_encoding")
+            throw RadrootsBackgroundResponseValidationError(failure: .responseContentEncoding)
     }
     return try RadrootsBackgroundTransferResponse(
       statusCode: statusCode, mediaType: mediaType,
@@ -790,8 +786,7 @@ struct RadrootsBackgroundURLTaskDescriptor: Sendable, Equatable {
         if let expectedDigest = request.expectedSourceSHA256,
           RadrootsAppleFileDigest.sha256(sourceData) != expectedDigest
         {
-          throw RadrootsBackgroundTransferError.invalidRequest(
-            "background upload source does not match its digest")
+                    throw RadrootsBackgroundTransferError.invalidRequest
         }
         task = session.uploadTask(with: urlRequest, fromFile: sourceURL)
       }
@@ -911,8 +906,7 @@ struct RadrootsBackgroundURLTaskDescriptor: Sendable, Equatable {
           fileSize >= 0,
           UInt64(fileSize) <= descriptor.maximumTransferBytes
         else {
-          throw RadrootsBackgroundTransferError.transferFailure(
-            "background_transfer_transfer_too_large")
+                    throw RadrootsBackgroundTransferError.transferFailure
         }
         try fileManager.createDirectory(at: downloadStagingRoot, withIntermediateDirectories: true)
         let destination = downloadStagingRoot.appendingPathComponent(
@@ -1024,8 +1018,7 @@ struct RadrootsBackgroundURLTaskDescriptor: Sendable, Equatable {
       stagedDownloadResultsByTaskIdentifier[taskIdentifier] = result
     }
 
-    private func takeDownloadResult(taskIdentifier: Int) -> RadrootsStagedBackgroundDownloadResult?
-    {
+        private func takeDownloadResult(taskIdentifier: Int) -> RadrootsStagedBackgroundDownloadResult? {
       lock.lock()
       defer { lock.unlock() }
       return stagedDownloadResultsByTaskIdentifier.removeValue(forKey: taskIdentifier)
@@ -1113,18 +1106,6 @@ extension RadrootsBackgroundTransferRequest {
   }
 }
 
-extension RadrootsBackgroundTransferError {
-  fileprivate var stableCode: String {
-    let value: String =
-      switch self {
-      case .invalidRequest(let message), .unavailable(let message), .transferFailure(let message),
-        .persistenceFailure(let message):
-        message
-      }
-    guard value.range(of: "^background_transfer_[a-z0-9_]+$", options: .regularExpression) != nil
-    else {
-      return "background_transfer_response_invalid"
-    }
-    return value
-  }
+private struct RadrootsBackgroundResponseValidationError: Error {
+    let failure: RadrootsBackgroundTransferFailure
 }

@@ -25,8 +25,9 @@ public enum RadrootsAppLocalStateReset {
     ) throws {
         let trimmed = appIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppLocalStateResetError.invalidRequest("app identifier cannot be empty")
+            throw RadrootsAppLocalStateResetError.invalidRequest
         }
+        do {
         let root = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
@@ -36,12 +37,17 @@ public enum RadrootsAppLocalStateReset {
         if fileManager.fileExists(atPath: root.path) {
             try fileManager.removeItem(at: root)
         }
+        } catch let error as RadrootsAppLocalStateResetError {
+            throw error
+        } catch {
+            throw RadrootsAppLocalStateResetError.fileSystemFailure
+        }
     }
 
     public static func clearKeychainService(_ serviceName: String) throws {
         let trimmed = serviceName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppLocalStateResetError.invalidRequest("keychain service name cannot be empty")
+            throw RadrootsAppLocalStateResetError.invalidRequest
         }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -49,12 +55,23 @@ public enum RadrootsAppLocalStateReset {
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw RadrootsAppLocalStateResetError.keychainStatus(status, "keychain service reset failed")
+            throw RadrootsAppLocalStateResetError.keychainFailure
         }
     }
 }
 
 public enum RadrootsAppLocalStateResetError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case keychainStatus(Int32, String)
+    case invalidRequest
+    case fileSystemFailure
+    case keychainFailure
+}
+
+extension RadrootsAppLocalStateResetError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidRequest: "The local-state reset request is invalid."
+        case .fileSystemFailure: "The local application state could not be reset."
+        case .keychainFailure: "The secure local state could not be reset."
+        }
+    }
 }

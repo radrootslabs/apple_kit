@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func webDestinationAcceptsOnlyHttpsUrlsWithHosts() throws {
     let destination = try RadrootsExternalActionDestination.web(" https://radroots.org/field ")
@@ -8,16 +9,16 @@ import Testing
     #expect(destination.kind == .web)
     #expect(destination.url?.absoluteString == "https://radroots.org/field")
 
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("external web urls must use https with a host")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.web("http://radroots.org")
     }
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("external web urls must use https with a host")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.web("wss://radroots.org")
     }
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("external web urls must use https with a host")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.web("https:///missing-host")
     }
-    #expect(throws: RadrootsExternalActionError.invalidRequest("web url cannot contain whitespace or control characters")) {
+    #expect(throws: RadrootsExternalActionError.invalidRequest) {
         _ = try RadrootsExternalActionDestination.web("https://radroots.org/a b")
     }
 }
@@ -34,13 +35,13 @@ import Testing
     _ = try RadrootsExternalActionDestination.nostr("nostr:naddr1qqqqqq")
     _ = try RadrootsExternalActionDestination.nostr("nostr:nrelay1qqqqqq")
 
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("nostr secret payloads cannot be opened externally")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.nostr("nostr:nsec1qqqqqq")
     }
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("nostr uri payload must be a public Nostr identifier")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.nostr("nostr:relay1qqqqqq")
     }
-    #expect(throws: RadrootsExternalActionError.invalidRequest("nostr uri cannot contain whitespace or control characters")) {
+    #expect(throws: RadrootsExternalActionError.invalidRequest) {
         _ = try RadrootsExternalActionDestination.nostr("nostr:npub1qq q")
     }
 }
@@ -60,7 +61,7 @@ import Testing
 
     _ = try RadrootsExternalActionDestination.appleMaps("https://maps.apple.com/?q=Field")
 
-    #expect(throws: RadrootsExternalActionError.blockedByPolicy("apple maps urls must use https://maps.apple.com")) {
+    #expect(throws: RadrootsExternalActionError.blockedByPolicy) {
         _ = try RadrootsExternalActionDestination.appleMaps("https://example.com/maps")
     }
 }

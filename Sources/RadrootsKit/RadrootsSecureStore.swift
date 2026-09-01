@@ -60,7 +60,7 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
     public static func normalizedServicePrefix(_ servicePrefix: String) throws -> String {
         let trimmedPrefix = servicePrefix.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrefix.isEmpty else {
-            throw RadrootsAppleSecurityError.invalidRequest("secure store service prefix cannot be empty")
+            throw RadrootsAppleSecurityError.invalidRequest
         }
         return trimmedPrefix
     }
@@ -68,7 +68,7 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
     public static func normalizedNamespace(_ namespace: String) throws -> String {
         let trimmedNamespace = namespace.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedNamespace.isEmpty else {
-            throw RadrootsAppleSecurityError.invalidRequest("secure store namespace cannot be empty")
+            throw RadrootsAppleSecurityError.invalidRequest
         }
         return trimmedNamespace
     }
@@ -76,7 +76,7 @@ public struct RadrootsSecureStoreKey: Hashable, Sendable {
     public static func normalizedName(_ name: String) throws -> String {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            throw RadrootsAppleSecurityError.invalidRequest("secure store key name cannot be empty")
+            throw RadrootsAppleSecurityError.invalidRequest
         }
         return trimmedName
     }
@@ -94,8 +94,8 @@ public protocol RadrootsSecureStore: AnyObject, Sendable {
     func deleteNamespace(_ namespace: String) throws
 }
 
-public extension RadrootsSecureStore {
-    func put(_ value: Data, for key: RadrootsSecureStoreKey) throws {
+extension RadrootsSecureStore {
+    public func put(_ value: Data, for key: RadrootsSecureStoreKey) throws {
         try put(value, for: key, policy: .secureLocalSecret)
     }
 }

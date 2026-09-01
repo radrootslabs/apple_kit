@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 #if canImport(CoreLocation)
     import CoreLocation
@@ -13,7 +14,7 @@ import Testing
             authorizationStatus: { .authorizedWhenInUse },
             requestWhenInUseAuthorization: { _ in .authorizedWhenInUse },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("not used")
+                throw RadrootsLocationServicesError.permanentFailure
             }
         )
     )
@@ -31,10 +32,10 @@ import Testing
             locationServicesEnabled: { true },
             authorizationStatus: { .authorizedWhenInUse },
             requestWhenInUseAuthorization: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("should not request")
+                throw RadrootsLocationServicesError.permanentFailure
             },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("not used")
+                throw RadrootsLocationServicesError.permanentFailure
             }
         )
     )
@@ -46,15 +47,15 @@ import Testing
             locationServicesEnabled: { true },
             authorizationStatus: { .denied },
             requestWhenInUseAuthorization: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("should not request")
+                throw RadrootsLocationServicesError.permanentFailure
             },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("not used")
+                throw RadrootsLocationServicesError.permanentFailure
             }
         )
     )
 
-    await #expect(throws: RadrootsLocationServicesError.permissionDenied("location permission is denied")) {
+    await #expect(throws: RadrootsLocationServicesError.permissionDenied) {
         _ = try await denied.requestWhenInUseAuthorization()
     }
 }
@@ -69,7 +70,7 @@ import Testing
                 return .authorizedWhenInUse
             },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("not used")
+                throw RadrootsLocationServicesError.permanentFailure
             }
         )
     )
@@ -97,7 +98,8 @@ import Testing
         )
     )
 
-    let result = try await service.currentLocation(RadrootsCurrentLocationRequest(
+    let result = try await service.currentLocation(
+        RadrootsCurrentLocationRequest(
         timeoutSeconds: 3,
         maximumCachedReadingAgeSeconds: 5
     ))
@@ -113,12 +115,12 @@ import Testing
             authorizationStatus: { .notDetermined },
             requestWhenInUseAuthorization: { _ in .authorizedWhenInUse },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.permanentFailure("should not request")
+                throw RadrootsLocationServicesError.permanentFailure
             }
         )
     )
 
-    await #expect(throws: RadrootsLocationServicesError.permissionDenied("location permission has not been requested")) {
+    await #expect(throws: RadrootsLocationServicesError.permissionDenied) {
         _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 1))
     }
 }
@@ -139,8 +141,9 @@ import Testing
         )
     )
 
-    await #expect(throws: RadrootsLocationServicesError.transientFailure("location reading is older than the requested maximum age")) {
-        _ = try await service.currentLocation(RadrootsCurrentLocationRequest(
+    await #expect(throws: RadrootsLocationServicesError.transientFailure) {
+        _ = try await service.currentLocation(
+            RadrootsCurrentLocationRequest(
             timeoutSeconds: 1,
             maximumCachedReadingAgeSeconds: 5
         ))
@@ -154,36 +157,41 @@ import Testing
             authorizationStatus: { .authorizedWhenInUse },
             requestWhenInUseAuthorization: { _ in .authorizedWhenInUse },
             requestCurrentLocation: { _ in
-                throw RadrootsLocationServicesError.timeout("timed out")
+                throw RadrootsLocationServicesError.timeout
             }
         )
     )
 
-    await #expect(throws: RadrootsLocationServicesError.timeout("timed out")) {
+    await #expect(throws: RadrootsLocationServicesError.timeout) {
         _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 1))
     }
 }
 
 #if canImport(CoreLocation)
     @Test func appleLocationServicesMapsCoreLocationAuthorization() {
-        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+        #expect(
+            RadrootsAppleLocationServicesAdapters.authorization(
             for: CLAuthorizationStatus.notDetermined,
             locationServicesEnabled: true
         ) == .notDetermined)
-        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+        #expect(
+            RadrootsAppleLocationServicesAdapters.authorization(
             for: CLAuthorizationStatus.denied,
             locationServicesEnabled: true
         ) == .denied)
-        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+        #expect(
+            RadrootsAppleLocationServicesAdapters.authorization(
             for: CLAuthorizationStatus.authorizedAlways,
             locationServicesEnabled: true
         ) == .authorizedAlways)
-        #expect(RadrootsAppleLocationServicesAdapters.authorization(
+        #expect(
+            RadrootsAppleLocationServicesAdapters.authorization(
             for: CLAuthorizationStatus.authorizedAlways,
             locationServicesEnabled: false
         ) == .unavailable)
         #if os(iOS)
-            #expect(RadrootsAppleLocationServicesAdapters.authorization(
+            #expect(
+                RadrootsAppleLocationServicesAdapters.authorization(
                 for: CLAuthorizationStatus.authorizedWhenInUse,
                 locationServicesEnabled: true
             ) == .authorizedWhenInUse)

@@ -23,11 +23,11 @@ import Testing
 
 @Test func fakeUserPresenceReturnsConfiguredFailures() async throws {
     let presence = RadrootsFakeUserPresence(
-        verificationOutcome: .failure(.userCancelled("verification cancelled"))
+        verificationOutcome: .failure(.userCancelled)
     )
     let request = try RadrootsUserPresenceRequest(reason: "Delete local Nostr identity")
 
-    await #expect(throws: RadrootsUserPresenceError.userCancelled("verification cancelled")) {
+    await #expect(throws: RadrootsUserPresenceError.userCancelled) {
         try await presence.verify(request)
     }
 
@@ -36,7 +36,8 @@ import Testing
 }
 
 @Test func fakeUserPresenceCanUpdateStatusAndOutcome() async throws {
-    let presence = RadrootsFakeUserPresence(status: .unavailable, verificationOutcome: .success(false))
+    let presence = RadrootsFakeUserPresence(
+        status: .unavailable, verificationOutcome: .success(false))
     let initialStatus = try await presence.currentStatus()
 
     await presence.setStatus(

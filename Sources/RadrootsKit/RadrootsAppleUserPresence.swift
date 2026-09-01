@@ -10,7 +10,8 @@ public struct RadrootsAppleUserPresenceAdapters: Sendable {
 
     public init(
         currentStatus: @escaping @Sendable () async throws -> RadrootsUserPresenceStatus,
-        verify: @escaping @Sendable (RadrootsUserPresenceRequest) async throws -> RadrootsUserPresenceResult
+        verify:
+            @escaping @Sendable (RadrootsUserPresenceRequest) async throws -> RadrootsUserPresenceResult
     ) {
         self.currentStatus = currentStatus
         self.verify = verify
@@ -34,10 +35,10 @@ public struct RadrootsAppleUserPresenceAdapters: Sendable {
         #else
             Self(
                 currentStatus: {
-                    throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
+                    throw RadrootsUserPresenceError.unavailable
                 },
                 verify: { _ in
-                    throw RadrootsUserPresenceError.unavailable("user presence is unavailable")
+                    throw RadrootsUserPresenceError.unavailable
                 }
             )
         #endif
@@ -47,16 +48,55 @@ public struct RadrootsAppleUserPresenceAdapters: Sendable {
 public final class RadrootsAppleUserPresence: RadrootsUserPresence, Sendable {
     private let adapters: RadrootsAppleUserPresenceAdapters
 
-    public init(adapters: RadrootsAppleUserPresenceAdapters = RadrootsAppleUserPresenceAdapters.live()) {
+    public init(
+        adapters: RadrootsAppleUserPresenceAdapters = RadrootsAppleUserPresenceAdapters.live()
+    ) {
         self.adapters = adapters
     }
 
     public func currentStatus() async throws -> RadrootsUserPresenceStatus {
-        try await adapters.currentStatus()
+        do {
+            return try await adapters.currentStatus()
+        } catch {
+            throw RadrootsAppleUserPresenceAdapters.adapt(error: error)
+        }
     }
 
-    public func verify(_ request: RadrootsUserPresenceRequest) async throws -> RadrootsUserPresenceResult {
-        try await adapters.verify(request)
+    public func verify(_ request: RadrootsUserPresenceRequest) async throws
+        -> RadrootsUserPresenceResult
+    {
+        do {
+            return try await adapters.verify(request)
+        } catch {
+            throw RadrootsAppleUserPresenceAdapters.adapt(error: error)
+        }
+    }
+}
+
+extension RadrootsAppleUserPresenceAdapters {
+    static func adapt(error: Error) -> RadrootsUserPresenceError {
+        if let error = error as? RadrootsUserPresenceError {
+            return error
+        }
+
+        #if canImport(LocalAuthentication)
+            if let error = error as? LAError {
+                switch error.code {
+                case .userCancel, .userFallback:
+                    return .userCancelled
+                case .appCancel, .systemCancel, .notInteractive:
+                    return .transientFailure
+                case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet:
+                    return .unavailable
+                case .authenticationFailed:
+                    return .permissionDenied
+                default:
+                    return .permanentFailure
+                }
+            }
+        #endif
+
+        return .permanentFailure
     }
 }
 
@@ -84,7 +124,8 @@ public final class RadrootsAppleUserPresence: RadrootsUserPresence, Sendable {
                 error: &deviceCredentialError
             )
 
-            let support: RadrootsUserPresenceSupport = if canEvaluateBiometrics {
+            let support: RadrootsUserPresenceSupport =
+                if canEvaluateBiometrics {
                 .biometricsOrDeviceCredential
             } else if canEvaluateDeviceCredential {
                 .deviceCredential
@@ -131,34 +172,13 @@ public final class RadrootsAppleUserPresence: RadrootsUserPresence, Sendable {
                     if let error {
                         completion(.failure(adapt(error: error)))
                     } else {
-                        completion(.success(RadrootsUserPresenceResult(policy: request.policy, verified: success)))
+                        completion(
+                            .success(RadrootsUserPresenceResult(policy: request.policy, verified: success)))
                     }
                 }
             }
         }
 
-        static func adapt(error: Error) -> RadrootsUserPresenceError {
-            if let error = error as? RadrootsUserPresenceError {
-                return error
-            }
-
-            if let error = error as? LAError {
-                switch error.code {
-                case .userCancel, .userFallback:
-                    return .userCancelled(error.localizedDescription)
-                case .appCancel, .systemCancel, .notInteractive:
-                    return .transientFailure(error.localizedDescription)
-                case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet:
-                    return .unavailable(error.localizedDescription)
-                case .authenticationFailed:
-                    return .permissionDenied(error.localizedDescription)
-                default:
-                    return .permanentFailure(error.localizedDescription)
-                }
-            }
-
-            return .permanentFailure(error.localizedDescription)
-        }
     }
 #endif
 
@@ -177,27 +197,29 @@ enum RadrootsAppleUserPresenceAsyncSupport {
                 }
                 Task {
                     try? await Task.sleep(nanoseconds: try Self.timeoutNanoseconds(timeout))
-                    state.resume(.failure(.timeout(timeoutMessage)))
+                    state.resume(.failure(.timeout))
                 }
             }
         } onCancel: {
-            state.resume(.failure(.userCancelled("user presence verification was cancelled")))
+            state.resume(.failure(.userCancelled))
         }
     }
 
     private static func timeoutNanoseconds(_ timeout: TimeInterval) throws -> UInt64 {
         guard timeout.isFinite, timeout > 0 else {
-            throw RadrootsUserPresenceError.invalidRequest("user presence timeout must be finite and greater than zero")
+            throw RadrootsUserPresenceError.invalidRequest
         }
         let nanoseconds = timeout * 1_000_000_000
         guard nanoseconds <= Double(UInt64.max) else {
-            throw RadrootsUserPresenceError.invalidRequest("user presence timeout is too large")
+            throw RadrootsUserPresenceError.invalidRequest
         }
         return UInt64(nanoseconds)
     }
 }
 
-private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>: @unchecked Sendable {
+private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>:
+    @unchecked Sendable
+{
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Value, any Error>?
     private var didResolve = false
@@ -206,7 +228,7 @@ private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>
         lock.lock()
         defer { lock.unlock() }
         guard !didResolve else {
-            continuation.resume(throwing: RadrootsUserPresenceError.transientFailure("user presence verification already resolved"))
+            continuation.resume(throwing: RadrootsUserPresenceError.transientFailure)
             return
         }
         self.continuation = continuation
@@ -225,9 +247,9 @@ private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>
         lock.unlock()
 
         switch result {
-        case let .success(value):
+        case .success(let value):
             pending?.resume(returning: value)
-        case let .failure(error):
+        case .failure(let error):
             pending?.resume(throwing: error)
         }
     }

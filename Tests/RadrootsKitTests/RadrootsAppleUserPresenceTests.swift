@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func appleUserPresenceReportsStatusThroughAdapter() async throws {
     let expectedStatus = RadrootsUserPresenceStatus(
@@ -54,18 +55,18 @@ import Testing
                 .unavailable
             },
             verify: { _ in
-                throw RadrootsUserPresenceError.unavailable("user presence unavailable")
+                throw RadrootsUserPresenceError.unavailable
             }
         )
     )
 
-    await #expect(throws: RadrootsUserPresenceError.unavailable("user presence unavailable")) {
+    await #expect(throws: RadrootsUserPresenceError.unavailable) {
         try await service.verify(RadrootsUserPresenceRequest(reason: "Delete local Nostr identity"))
     }
 }
 
 @Test func appleUserPresenceAsyncSupportTimesOutUnresolvedCallbacks() async {
-    await #expect(throws: RadrootsUserPresenceError.timeout("timed out")) {
+    await #expect(throws: RadrootsUserPresenceError.timeout) {
         let _: Bool = try await RadrootsAppleUserPresenceAsyncSupport.awaitCallback(
             timeout: 0.001,
             timeoutMessage: "timed out"
@@ -78,12 +79,12 @@ import Testing
 
     @Test func appleUserPresenceMapsLocalAuthenticationPolicies() {
         #expect(
-            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthentication) ==
-                LAPolicy.deviceOwnerAuthentication
+            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthentication)
+                == LAPolicy.deviceOwnerAuthentication
         )
         #expect(
-            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthenticationWithBiometrics) ==
-                LAPolicy.deviceOwnerAuthenticationWithBiometrics
+            RadrootsAppleUserPresenceAdapters.platformPolicy(.deviceOwnerAuthenticationWithBiometrics)
+                == LAPolicy.deviceOwnerAuthenticationWithBiometrics
         )
     }
 

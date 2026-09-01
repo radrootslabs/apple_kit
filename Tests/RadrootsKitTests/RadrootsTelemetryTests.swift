@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func telemetryEventNormalizesSafeIdentifiersAndFields() throws {
     let event = try RadrootsTelemetryEvent(
@@ -25,16 +26,16 @@ import Testing
 }
 
 @Test func telemetryEventRejectsUnsafeShape() throws {
-    #expect(throws: RadrootsTelemetryError.invalidRequest("telemetry event name must use lowercase safe identifier characters")) {
+    #expect(throws: RadrootsTelemetryError.invalidRequest) {
         _ = try RadrootsTelemetryEvent(name: "FieldIos.Startup")
     }
-    #expect(throws: RadrootsTelemetryError.invalidRequest("telemetry field key must use lowercase safe identifier characters")) {
+    #expect(throws: RadrootsTelemetryError.invalidRequest) {
         _ = try RadrootsTelemetryField.string("Relay Light", "green")
     }
-    #expect(throws: RadrootsTelemetryError.invalidRequest("telemetry double field must be finite")) {
+    #expect(throws: RadrootsTelemetryError.invalidRequest) {
         _ = try RadrootsTelemetryField.double("elapsed_seconds", .infinity)
     }
-    #expect(throws: RadrootsTelemetryError.invalidRequest("telemetry event field keys must be unique")) {
+    #expect(throws: RadrootsTelemetryError.invalidRequest) {
         _ = try RadrootsTelemetryEvent(
             name: "field_ios.relay.status",
             fields: [
@@ -81,7 +82,7 @@ import Testing
         name: "field_ios.identity.import",
         message: "imported nsec1secret",
         fields: [
-            .string("identity_state", "imported"),
+            .string("identity_state", "imported")
         ]
     )
 

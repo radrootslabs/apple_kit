@@ -1,26 +1,21 @@
 import Foundation
 
 public enum RadrootsAppleFileError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case notFound(String)
-    case permissionDenied(String)
-    case transientFailure(String)
-    case permanentFailure(String)
+    case invalidRequest
+    case notFound
+    case permissionDenied
+    case transientFailure
+    case permanentFailure
 }
 
 extension RadrootsAppleFileError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .notFound(message):
-            message
-        case let .permissionDenied(message):
-            message
-        case let .transientFailure(message):
-            message
-        case let .permanentFailure(message):
-            message
+        case .invalidRequest: "The file request is invalid."
+        case .notFound: "The file was not found."
+        case .permissionDenied: "File access was denied."
+        case .transientFailure: "The file operation could not be completed temporarily."
+        case .permanentFailure: "The file operation could not be completed."
         }
     }
 }

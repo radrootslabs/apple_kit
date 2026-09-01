@@ -1,6 +1,7 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func appleBackgroundTaskSchedulerRegistersAndSubmitsThroughAdapters() async throws {
     let probe = RadrootsAppleBackgroundTaskSchedulerProbe(now: Date(timeIntervalSince1970: 100))
@@ -27,7 +28,8 @@ import Testing
 }
 
 @Test func appleBackgroundTaskSchedulerCancelsAndListsPendingTasksThroughAdapters() async throws {
-    let identifier = try RadrootsBackgroundTaskIdentifier("org.radroots.field-ios.background.processing")
+    let identifier = try RadrootsBackgroundTaskIdentifier(
+        "org.radroots.field-ios.background.processing")
     let request = try RadrootsBackgroundTaskRequest(
         identifier: identifier,
         kind: .processing,
@@ -50,7 +52,7 @@ import Testing
 
 @Test func appleBackgroundTaskSchedulerMapsAdapterSubmitFailures() async throws {
     let probe = RadrootsAppleBackgroundTaskSchedulerProbe(
-        submitOutcome: .failure(.schedulerFailure("submit rejected"))
+        submitOutcome: .failure(.schedulerFailure)
     )
     let scheduler = RadrootsAppleBackgroundTaskScheduler(adapters: probe.adapters())
     let request = try RadrootsBackgroundTaskRequest(
@@ -58,7 +60,7 @@ import Testing
         kind: .appRefresh
     )
 
-    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure("submit rejected")) {
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
         _ = try await scheduler.submit(request)
     }
 }
@@ -73,7 +75,7 @@ import Testing
         handler: { true }
     )
 
-    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure("background task registration was rejected")) {
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
         _ = try await scheduler.register(registration)
     }
     #expect(await probe.registeredIdentifiers == [identifier])
@@ -138,7 +140,7 @@ private actor RadrootsAppleBackgroundTaskSchedulerProbe {
         switch submitOutcome {
         case .success:
             return
-        case let .failure(error):
+        case .failure(let error):
             throw error
         }
     }

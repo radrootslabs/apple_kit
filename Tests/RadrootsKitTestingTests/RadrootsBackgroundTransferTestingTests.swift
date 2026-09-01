@@ -15,7 +15,8 @@ import Testing
     try await store.saveSnapshot(first)
     try await store.saveSnapshot(second)
 
-    #expect(try await store.loadSnapshots().map(\.identifier.rawValue) == [
+    #expect(
+        try await store.loadSnapshots().map(\.identifier.rawValue) == [
         "field.transfer.a",
         "field.transfer.b",
     ])
@@ -38,7 +39,9 @@ import Testing
     #expect(handle.identifier == request.identifier)
     #expect(await transfer.enqueuedRequests == [request])
     #expect(try await transfer.snapshot(for: request.identifier)?.state == .queued)
-    #expect(try await transfer.snapshot(for: request.identifier)?.updatedAt == Date(timeIntervalSince1970: 42))
+    #expect(
+        try await transfer.snapshot(for: request.identifier)?.updatedAt
+            == Date(timeIntervalSince1970: 42))
 
     try await transfer.cancel(request.identifier)
 
@@ -54,21 +57,21 @@ import Testing
     _ = try await transfer.enqueue(completed)
     _ = try await transfer.enqueue(failed)
     try await transfer.complete(completed.identifier)
-    try await transfer.fail(failed.identifier, message: "network unavailable")
+    try await transfer.fail(failed.identifier, failure: .platformFailure)
 
     #expect(try await transfer.snapshot(for: completed.identifier)?.state == .completed)
     let failedSnapshot = try await transfer.snapshot(for: failed.identifier)
     #expect(failedSnapshot?.state == .failed)
-    #expect(failedSnapshot?.errorMessage == "network unavailable")
+    #expect(failedSnapshot?.failure == .platformFailure)
 }
 
 @Test func fakeBackgroundTransferCanReturnEnqueueFailures() async throws {
     let transfer = RadrootsFakeBackgroundTransfer(
-        enqueueOutcome: .failure(.transferFailure("queue unavailable"))
+        enqueueOutcome: .failure(.transferFailure)
     )
     let request = try testTransferRequest(identifier: "field.transfer.failure")
 
-    await #expect(throws: RadrootsBackgroundTransferError.transferFailure("queue unavailable")) {
+    await #expect(throws: RadrootsBackgroundTransferError.transferFailure) {
         _ = try await transfer.enqueue(request)
     }
     #expect(await transfer.enqueuedRequests == [request])

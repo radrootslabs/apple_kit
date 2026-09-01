@@ -79,7 +79,9 @@ public final class RadrootsAppleExternalActions: RadrootsExternalActions, Sendab
         self.adapters = adapters
     }
 
-    public func canOpen(_ destination: RadrootsExternalActionDestination) async -> RadrootsExternalActionCapability {
+    public func canOpen(_ destination: RadrootsExternalActionDestination) async
+        -> RadrootsExternalActionCapability
+    {
         let url = await resolvedURL(for: destination)
         guard let url else {
             return RadrootsExternalActionCapability(destination: destination, canOpen: false)
@@ -93,15 +95,11 @@ public final class RadrootsAppleExternalActions: RadrootsExternalActions, Sendab
 
     public func open(_ request: RadrootsExternalActionRequest) async throws {
         guard let url = await resolvedURL(for: request.destination) else {
-            throw RadrootsExternalActionError.unavailable(
-                "\(request.destination.kind.rawValue) external action is unavailable"
-            )
+            throw RadrootsExternalActionError.unavailable
         }
         let success = await adapters.openURL(url)
         guard success else {
-            throw RadrootsExternalActionError.transientFailure(
-                "failed to open \(request.destination.kind.rawValue) external action"
-            )
+            throw RadrootsExternalActionError.transientFailure
         }
     }
 
@@ -116,9 +114,9 @@ public final class RadrootsAppleExternalActions: RadrootsExternalActions, Sendab
 }
 
 #if canImport(UIKit)
-    private extension RadrootsAppleExternalActionsAdapters {
+    extension RadrootsAppleExternalActionsAdapters {
         @MainActor
-        static func openUIKitURL(_ url: URL) async -> Bool {
+        fileprivate static func openUIKitURL(_ url: URL) async -> Bool {
             await withCheckedContinuation { continuation in
                 UIApplication.shared.open(url, options: [:]) { success in
                     continuation.resume(returning: success)

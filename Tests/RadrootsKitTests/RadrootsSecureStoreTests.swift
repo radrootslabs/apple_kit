@@ -1,7 +1,8 @@
 import Foundation
-@testable import RadrootsKit
 import Security
 import Testing
+
+@testable import RadrootsKit
 
 @Test func secureStoreKeyBuildsServiceName() throws {
     let key = RadrootsSecureStoreKey(namespace: "session", name: "token")
@@ -104,7 +105,7 @@ import Testing
     let failingStore = RadrootsAppleKeychainSecureStore(
         servicePrefix: servicePrefix,
         accessControlFactory: { _ in
-            throw RadrootsAppleSecurityError.invalidRequest("forced access control failure")
+            throw RadrootsAppleSecurityError.invalidRequest
         }
     )
 
@@ -121,7 +122,8 @@ import Testing
     let store = RadrootsAppleKeychainSecureStore()
     let mapping = store.keychainPolicyMapping(for: .secureLocalSecret)
 
-    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
+    #expect(
+        String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
     #expect(mapping.usesAccessControl == false)
     #expect(mapping.accessControlFlags.isEmpty)
 }
@@ -130,7 +132,8 @@ import Testing
     let store = RadrootsAppleKeychainSecureStore()
     let mapping = store.keychainPolicyMapping(for: .userPresenceLocalSecret)
 
-    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
+    #expect(
+        String(mapping.accessibilityConstant) == String(kSecAttrAccessibleWhenUnlockedThisDeviceOnly))
     #expect(mapping.usesAccessControl == true)
     #expect(mapping.accessControlFlags == .userPresence)
     _ = try store.accessControl(for: mapping)
@@ -146,7 +149,9 @@ import Testing
         )
     )
 
-    #expect(String(mapping.accessibilityConstant) == String(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly))
+    #expect(
+        String(mapping.accessibilityConstant)
+            == String(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly))
     #expect(mapping.usesAccessControl == false)
     #expect(mapping.accessControlFlags.isEmpty)
 }

@@ -1,19 +1,20 @@
 import Foundation
-@testable import RadrootsKit
 import Testing
+
+@testable import RadrootsKit
 
 @Test func backgroundTaskIdentifierNormalizesAndRejectsUnsafeValues() throws {
     let identifier = try RadrootsBackgroundTaskIdentifier(" ORG.RADROOTS.FIELD-IOS.refresh ")
 
     #expect(identifier.rawValue == "org.radroots.field-ios.refresh")
 
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("background task identifier must not be empty")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskIdentifier(" ")
     }
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("background task identifier must use lowercase safe identifier characters")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskIdentifier(".org.radroots")
     }
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("background task identifier cannot contain empty path components")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskIdentifier("org.radroots..refresh")
     }
 }
@@ -40,14 +41,14 @@ import Testing
     #expect(processing.requiresNetworkConnectivity)
     #expect(processing.requiresExternalPower)
 
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("app refresh tasks cannot require network connectivity or external power")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskRequest(
             identifier: "org.radroots.field-ios.background.refresh",
             kind: .appRefresh,
             requiresNetworkConnectivity: true
         )
     }
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("background task earliest begin date must be finite")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskRequest(
             identifier: "org.radroots.field-ios.background.refresh",
             kind: .appRefresh,
@@ -75,7 +76,7 @@ import Testing
     #expect(snapshot.requiresNetworkConnectivity)
     #expect(!snapshot.requiresExternalPower)
 
-    #expect(throws: RadrootsBackgroundTaskError.invalidRequest("background task submitted date must be finite")) {
+    #expect(throws: RadrootsBackgroundTaskError.invalidRequest) {
         _ = try RadrootsBackgroundTaskSnapshot(
             request: request,
             submittedAt: Date(timeIntervalSinceReferenceDate: .infinity)
@@ -84,20 +85,20 @@ import Testing
 }
 
 @Test func unavailableBackgroundTaskSchedulerThrowsTypedErrors() async throws {
-    let scheduler = RadrootsUnavailableBackgroundTaskScheduler(reason: "missing background support")
+    let scheduler = RadrootsUnavailableBackgroundTaskScheduler()
     let identifier = try RadrootsBackgroundTaskIdentifier("org.radroots.field-ios.background.refresh")
     let request = try RadrootsBackgroundTaskRequest(identifier: identifier, kind: .appRefresh)
 
-    await #expect(throws: RadrootsBackgroundTaskError.unavailable("missing background support")) {
+    await #expect(throws: RadrootsBackgroundTaskError.unavailable) {
         _ = try await scheduler.submit(request)
     }
-    await #expect(throws: RadrootsBackgroundTaskError.unavailable("missing background support")) {
+    await #expect(throws: RadrootsBackgroundTaskError.unavailable) {
         try await scheduler.cancel(identifier)
     }
-    await #expect(throws: RadrootsBackgroundTaskError.unavailable("missing background support")) {
+    await #expect(throws: RadrootsBackgroundTaskError.unavailable) {
         try await scheduler.cancelAll()
     }
-    await #expect(throws: RadrootsBackgroundTaskError.unavailable("missing background support")) {
+    await #expect(throws: RadrootsBackgroundTaskError.unavailable) {
         _ = try await scheduler.pendingTasks()
     }
 }

@@ -54,7 +54,7 @@ public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codabl
     ) throws {
         let normalizedBlobID = try Self.normalizedBlobID(blobID)
         guard sizeBytes >= 0 else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob size cannot be negative")
+            throw RadrootsAppleFileError.invalidRequest
         }
         self.blobID = normalizedBlobID
         self.sizeBytes = sizeBytes
@@ -65,11 +65,12 @@ public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codabl
     public static func normalizedBlobID(_ blobID: String) throws -> String {
         let trimmed = blobID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob id cannot be empty")
+            throw RadrootsAppleFileError.invalidRequest
         }
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        let allowed = CharacterSet(
+            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
         guard trimmed.rangeOfCharacter(from: allowed.inverted) == nil else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob id contains invalid characters")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return trimmed
     }
@@ -80,10 +81,10 @@ public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codabl
         }
         let trimmed = mediaType.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob media type cannot be empty")
+            throw RadrootsAppleFileError.invalidRequest
         }
         guard trimmed.rangeOfCharacter(from: .newlines) == nil else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob media type cannot contain newlines")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return trimmed
     }
@@ -94,10 +95,10 @@ public struct RadrootsStagedBlobReference: Sendable, Equatable, Hashable, Codabl
         }
         let trimmed = filenameHint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob filename hint cannot be empty")
+            throw RadrootsAppleFileError.invalidRequest
         }
         guard !trimmed.contains("/"), !trimmed.contains("\\"), !trimmed.contains("\0") else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob filename hint cannot contain path separators")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return trimmed
     }
@@ -121,25 +122,33 @@ public enum RadrootsFileReadResult: Sendable, Equatable {
 
 public protocol RadrootsFileAccess {
     func write(_ payload: RadrootsFilePayload, to file: RadrootsFileReference) throws
-    func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws -> RadrootsFileReadResult
+    func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws
+        -> RadrootsFileReadResult
     func delete(_ file: RadrootsFileReference) throws
     func list(_ directory: RadrootsFileReference) throws -> [RadrootsFileEntry]
     func reset(scope: RadrootsFileScope) throws
-    @discardableResult func stageBlob(_ data: Data, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
-    @discardableResult func stageFile(_ file: RadrootsFileReference, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
-    @discardableResult func stageExternalFile(_ sourceURL: URL, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
+    @discardableResult func stageBlob(_ data: Data, mediaType: String?, filenameHint: String?) throws
+        -> RadrootsStagedBlobReference
+    @discardableResult func stageFile(
+        _ file: RadrootsFileReference, mediaType: String?, filenameHint: String?
+    ) throws -> RadrootsStagedBlobReference
+    @discardableResult func stageExternalFile(
+        _ sourceURL: URL, mediaType: String?, filenameHint: String?
+    ) throws -> RadrootsStagedBlobReference
     @discardableResult func copyExternalFile(
         _ sourceURL: URL,
         to file: RadrootsFileReference,
         mediaType: String?,
         suggestedFilename: String?
     ) throws -> RadrootsImportedDocument
-    @discardableResult func prepareExport(_ request: RadrootsExportDocumentRequest) throws -> RadrootsPreparedExportDocument
+    @discardableResult func prepareExport(_ request: RadrootsExportDocumentRequest) throws
+        -> RadrootsPreparedExportDocument
     func preparedExportExists(_ preparedExport: RadrootsPreparedExportDocument) throws -> Bool
     func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data
     func releaseStagedBlob(_ blob: RadrootsStagedBlobReference) throws
     func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws
-    @discardableResult func sweepStagedBlobs(olderThan cutoff: Date) throws -> [RadrootsStagedBlobReference]
+    @discardableResult func sweepStagedBlobs(olderThan cutoff: Date) throws
+        -> [RadrootsStagedBlobReference]
     func resetStagedBlobs() throws
 }
 
@@ -158,18 +167,25 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         let url = try roots.resolvedURL(for: file)
         try createParentDirectory(for: url)
         switch payload {
-        case let .inline(inlineData):
+        case .inline(let inlineData):
+            try classifiedFileSystemOperation {
             try inlineData.write(to: url, options: [.atomic])
-        case let .stagedBlob(stagedBlob):
-            try readStagedBlob(stagedBlob).write(to: url, options: [.atomic])
+            }
+        case .stagedBlob(let stagedBlob):
+            let data = try readStagedBlob(stagedBlob)
+            try classifiedFileSystemOperation {
+                try data.write(to: url, options: [.atomic])
+            }
         }
     }
 
-    public func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws -> RadrootsFileReadResult {
+    public func read(_ file: RadrootsFileReference, mode: RadrootsFileReadMode) throws
+        -> RadrootsFileReadResult
+    {
         switch mode {
-        case let .inline(maxBytes):
+        case .inline(let maxBytes):
             return try .inline(readGovernedFile(file, maximumBytes: maxBytes))
-        case let .preferInline(maxBytes):
+        case .preferInline(let maxBytes):
             do {
                 return try .inline(
                     readGovernedFile(file, maximumBytes: maxBytes, preserveTooLarge: true)
@@ -191,7 +207,9 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         guard fileManager.fileExists(atPath: url.path) else {
             return
         }
+        try classifiedFileSystemOperation {
         try fileManager.removeItem(at: url)
+    }
     }
 
     public func list(_ directory: RadrootsFileReference) throws -> [RadrootsFileEntry] {
@@ -202,15 +220,18 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             return []
         }
         guard isDirectory.boolValue else {
-            throw RadrootsAppleFileError.invalidRequest("file list target must be a directory")
+            throw RadrootsAppleFileError.invalidRequest
         }
+        return try classifiedFileSystemOperation {
         let urls = try fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
             options: []
         )
         return try urls.map { url in
-            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
+                let values = try url.resourceValues(
+                    forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+                )
             let relativePath = try relativePath(for: url.standardizedFileURL, under: rootURL)
             return RadrootsFileEntry(
                 file: RadrootsFileReference(scope: directory.scope, relativePath: relativePath),
@@ -224,13 +245,16 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             left.file.relativePath < right.file.relativePath
         }
     }
+    }
 
     public func reset(scope: RadrootsFileScope) throws {
         let url = roots.root(for: scope)
+        try classifiedFileSystemOperation {
         if fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
         }
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+    }
     }
 
     @discardableResult
@@ -240,7 +264,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         filenameHint: String? = nil
     ) throws -> RadrootsStagedBlobReference {
         guard data.count <= Self.maximumGovernedFileBytes else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob exceeds the governed byte limit")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let blobID = UUID().uuidString.lowercased()
         let blob = try RadrootsStagedBlobReference(
@@ -250,8 +274,10 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             filenameHint: filenameHint
         )
         let url = try stagedBlobURL(for: blob)
+        try classifiedFileSystemOperation {
         try fileManager.createDirectory(at: roots.stagedBlobsRoot, withIntermediateDirectories: true)
         try data.write(to: url, options: [.atomic])
+        }
         return blob
     }
 
@@ -307,21 +333,29 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     @discardableResult
-    public func prepareExport(_ request: RadrootsExportDocumentRequest) throws -> RadrootsPreparedExportDocument {
+    public func prepareExport(_ request: RadrootsExportDocumentRequest) throws
+        -> RadrootsPreparedExportDocument
+    {
         let preparedID = UUID().uuidString.lowercased()
         let directoryURL = preparedExportsRoot.appendingPathComponent(preparedID, isDirectory: true)
         let fileURL = directoryURL.appendingPathComponent(request.suggestedFilename).standardizedFileURL
+        try classifiedFileSystemOperation {
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        switch request.source {
-        case let .inlineData(data):
-            try data.write(to: fileURL, options: [.atomic])
-        case let .file(file):
-            try readGovernedFile(file, maximumBytes: Self.maximumGovernedFileBytes)
-                .write(to: fileURL, options: [.atomic])
-        case let .stagedBlob(stagedBlob):
-            try readStagedBlob(stagedBlob).write(to: fileURL, options: [.atomic])
         }
-        let sizeBytes: UInt64 = if let requestSizeBytes = request.sizeBytes {
+        let preparedData: Data
+        switch request.source {
+        case .inlineData(let data):
+            preparedData = data
+        case .file(let file):
+            preparedData = try readGovernedFile(file, maximumBytes: Self.maximumGovernedFileBytes)
+        case .stagedBlob(let stagedBlob):
+            preparedData = try readStagedBlob(stagedBlob)
+        }
+        try classifiedFileSystemOperation {
+            try preparedData.write(to: fileURL, options: [.atomic])
+        }
+        let sizeBytes: UInt64 =
+            if let requestSizeBytes = request.sizeBytes {
             requestSizeBytes
         } else {
             try fileSizeUInt64(at: fileURL)
@@ -337,7 +371,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
 
     public func readStagedBlob(_ blob: RadrootsStagedBlobReference) throws -> Data {
         guard (0 ... Self.maximumGovernedFileBytes).contains(blob.sizeBytes) else {
-            throw RadrootsAppleFileError.invalidRequest("staged blob byte size is invalid")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let data: Data
         do {
@@ -350,7 +384,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             throw mappedGovernedReadError(error)
         }
         guard data.count == blob.sizeBytes else {
-            throw RadrootsAppleFileError.permanentFailure("staged blob size does not match reference")
+            throw RadrootsAppleFileError.permanentFailure
         }
         return data
     }
@@ -358,21 +392,25 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     public func releaseStagedBlob(_ blob: RadrootsStagedBlobReference) throws {
         let url = try stagedBlobURL(for: blob)
         if fileManager.fileExists(atPath: url.path) {
+            try classifiedFileSystemOperation {
             try fileManager.removeItem(at: url)
         }
+    }
     }
 
     public func preparedExportExists(_ preparedExport: RadrootsPreparedExportDocument) throws -> Bool {
         let directoryURL = try preparedExportDirectoryURL(for: preparedExport)
-        return fileManager.fileExists(atPath: directoryURL.path) &&
-            fileManager.fileExists(atPath: preparedExport.fileURL.path)
+        return fileManager.fileExists(atPath: directoryURL.path)
+            && fileManager.fileExists(atPath: preparedExport.fileURL.path)
     }
 
     public func releasePreparedExport(_ preparedExport: RadrootsPreparedExportDocument) throws {
         let directoryURL = try preparedExportDirectoryURL(for: preparedExport)
         if fileManager.fileExists(atPath: directoryURL.path) {
+            try classifiedFileSystemOperation {
             try fileManager.removeItem(at: directoryURL)
         }
+    }
     }
 
     @discardableResult
@@ -380,6 +418,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         guard fileManager.fileExists(atPath: roots.stagedBlobsRoot.path) else {
             return []
         }
+        return try classifiedFileSystemOperation {
         let urls = try fileManager.contentsOfDirectory(
             at: roots.stagedBlobsRoot,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
@@ -387,7 +426,9 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         )
         var released: [RadrootsStagedBlobReference] = []
         for url in urls {
-            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
+                let values = try url.resourceValues(
+                    forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+                )
             guard values.isDirectory != true else {
                 continue
             }
@@ -405,12 +446,15 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             left.blobID < right.blobID
         }
     }
+    }
 
     public func resetStagedBlobs() throws {
+        try classifiedFileSystemOperation {
         if fileManager.fileExists(atPath: roots.stagedBlobsRoot.path) {
             try fileManager.removeItem(at: roots.stagedBlobsRoot)
         }
         try fileManager.createDirectory(at: roots.stagedBlobsRoot, withIntermediateDirectories: true)
+    }
     }
 
     public func resetFileRoots() throws {
@@ -425,14 +469,20 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     private var preparedExportsRoot: URL {
-        roots.temporaryRoot.appendingPathComponent("prepared_exports", isDirectory: true).standardizedFileURL
+        roots.temporaryRoot.appendingPathComponent("prepared_exports", isDirectory: true)
+            .standardizedFileURL
     }
 
-    private func preparedExportDirectoryURL(for preparedExport: RadrootsPreparedExportDocument) throws -> URL {
-        let normalizedPreparedID = try RadrootsPreparedExportDocument.normalizedPreparedID(preparedExport.preparedID)
-        let directoryURL = preparedExportsRoot.appendingPathComponent(normalizedPreparedID, isDirectory: true).standardizedFileURL
+    private func preparedExportDirectoryURL(for preparedExport: RadrootsPreparedExportDocument) throws
+        -> URL
+    {
+        let normalizedPreparedID = try RadrootsPreparedExportDocument.normalizedPreparedID(
+            preparedExport.preparedID)
+        let directoryURL = preparedExportsRoot.appendingPathComponent(
+            normalizedPreparedID, isDirectory: true
+        ).standardizedFileURL
         guard preparedExport.fileURL.standardizedFileURL.path.hasPrefix(directoryURL.path + "/") else {
-            throw RadrootsAppleFileError.invalidRequest("prepared export file escaped its directory")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return directoryURL
     }
@@ -444,7 +494,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     ) throws -> RadrootsStagedBlobReference {
         let sizeBytes = try fileSizeInt(at: sourceURL)
         guard sizeBytes <= Self.maximumGovernedFileBytes else {
-            throw RadrootsAppleFileError.permanentFailure("file exceeds the governed byte limit")
+            throw RadrootsAppleFileError.permanentFailure
         }
         let blobID = UUID().uuidString.lowercased()
         let blob = try RadrootsStagedBlobReference(
@@ -454,22 +504,24 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
             filenameHint: filenameHint
         )
         let destinationURL = try stagedBlobURL(for: blob)
+        try classifiedFileSystemOperation {
         try fileManager.createDirectory(at: roots.stagedBlobsRoot, withIntermediateDirectories: true)
+        }
         try copyReplacingItem(from: sourceURL, to: destinationURL)
         return blob
     }
 
     private func withSecurityScopedFile<T>(_ sourceURL: URL, _ body: (URL) throws -> T) throws -> T {
         guard sourceURL.isFileURL else {
-            throw RadrootsAppleFileError.invalidRequest("external file url must be a file url")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let scopedURL = sourceURL.standardizedFileURL
         var isDirectory = ObjCBool(false)
         guard fileManager.fileExists(atPath: scopedURL.path, isDirectory: &isDirectory) else {
-            throw RadrootsAppleFileError.notFound("external file not found")
+            throw RadrootsAppleFileError.notFound
         }
         guard !isDirectory.boolValue else {
-            throw RadrootsAppleFileError.invalidRequest("external file url must reference a file")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let didStartScope = scopedURL.startAccessingSecurityScopedResource()
         defer {
@@ -482,17 +534,22 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
 
     private func copyReplacingItem(from sourceURL: URL, to destinationURL: URL) throws {
         guard sourceURL.isFileURL, destinationURL.isFileURL else {
-            throw RadrootsAppleFileError.invalidRequest("copy source and destination must be file urls")
+            throw RadrootsAppleFileError.invalidRequest
         }
         try createParentDirectory(for: destinationURL)
+        try classifiedFileSystemOperation {
         if fileManager.fileExists(atPath: destinationURL.path) {
             try fileManager.removeItem(at: destinationURL)
         }
         try fileManager.copyItem(at: sourceURL, to: destinationURL)
     }
+    }
 
     private func createParentDirectory(for url: URL) throws {
-        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try classifiedFileSystemOperation {
+            try fileManager.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
     }
 
     private func fileSize(at url: URL) throws -> Int {
@@ -500,9 +557,11 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
     }
 
     private func fileSizeInt(at url: URL) throws -> Int {
-        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        let values = try classifiedFileSystemOperation {
+            try url.resourceValues(forKeys: [.fileSizeKey])
+        }
         guard let size = values.fileSize else {
-            throw RadrootsAppleFileError.permanentFailure("file size is unavailable")
+            throw RadrootsAppleFileError.permanentFailure
         }
         return size
     }
@@ -517,7 +576,7 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         preserveTooLarge: Bool = false
     ) throws -> Data {
         guard (0 ... Self.maximumGovernedFileBytes).contains(maximumBytes) else {
-            throw RadrootsAppleFileError.invalidRequest("inline byte limit is invalid")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let root = roots.root(for: file.scope)
         let resolved = try roots.resolvedURL(for: file)
@@ -536,16 +595,18 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         }
     }
 
-    private func mappedGovernedReadError(_ error: RadrootsGovernedFileReadError) -> RadrootsAppleFileError {
+    private func mappedGovernedReadError(_ error: RadrootsGovernedFileReadError)
+        -> RadrootsAppleFileError
+    {
         switch error {
         case .unavailable:
-            .notFound("file not found")
+            .notFound
         case .invalidRequest:
-            .invalidRequest("file request is invalid")
+            .invalidRequest
         case .tooLarge:
-            .permanentFailure("file exceeds the governed byte limit")
+            .permanentFailure
         case .invalidObject, .changedDuringRead, .ioFailure:
-            .permanentFailure("file failed governed admission")
+            .permanentFailure
         }
     }
 
@@ -553,9 +614,21 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
         let rootPath = rootURL.standardizedFileURL.path
         let filePath = url.standardizedFileURL.path
         guard filePath.hasPrefix(rootPath + "/") else {
-            throw RadrootsAppleFileError.invalidRequest("file list entry escaped its scope")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return String(filePath.dropFirst(rootPath.count + 1))
+    }
+
+    private func classifiedFileSystemOperation<T>(_ operation: () throws -> T) throws -> T {
+        do {
+            return try operation()
+        } catch let error as RadrootsAppleFileError {
+            throw error
+        } catch let error as RadrootsDocumentInterchangeError {
+            throw error
+        } catch {
+            throw RadrootsAppleFileError.permanentFailure
+        }
     }
 }
 
@@ -588,7 +661,8 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             field: "logsRoot"
         )
         self.stagedBlobsRoot = try Self.normalizedRootURL(
-            stagedBlobsRoot ?? normalizedTemporaryRoot.appendingPathComponent("staged_blobs", isDirectory: true),
+            stagedBlobsRoot
+                ?? normalizedTemporaryRoot.appendingPathComponent("staged_blobs", isDirectory: true),
             field: "stagedBlobsRoot"
         )
     }
@@ -597,21 +671,25 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
         appIdentifier: String,
         fileManager: FileManager = .default
     ) throws -> Self {
+        do {
         let normalizedAppIdentifier = try normalizedAppIdentifier(appIdentifier)
-        let dataBaseURL = try canonicalExistingDirectory(fileManager.url(
+            let dataBaseURL = try canonicalExistingDirectory(
+                fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         ))
-        let cacheBaseURL = try canonicalExistingDirectory(fileManager.url(
+            let cacheBaseURL = try canonicalExistingDirectory(
+                fileManager.url(
             for: .cachesDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         ))
         let dataRoot = dataBaseURL.appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
-        let cacheRoot = cacheBaseURL.appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
+            let cacheRoot = cacheBaseURL.appendingPathComponent(
+                normalizedAppIdentifier, isDirectory: true)
         let temporaryRoot = try canonicalExistingDirectory(fileManager.temporaryDirectory)
             .appendingPathComponent(normalizedAppIdentifier, isDirectory: true)
         return try Self(
@@ -620,6 +698,11 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             cacheRoot: cacheRoot,
             temporaryRoot: temporaryRoot
         )
+        } catch let error as RadrootsAppleFileError {
+            throw error
+        } catch {
+            throw RadrootsAppleFileError.permanentFailure
+        }
     }
 
     public func root(for scope: RadrootsFileScope) -> URL {
@@ -645,10 +728,10 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             if allowRootDirectory {
                 return rootURL
             }
-            throw RadrootsAppleFileError.invalidRequest("file relative path cannot be empty")
+            throw RadrootsAppleFileError.invalidRequest
         }
         if NSString(string: trimmedPath).isAbsolutePath {
-            throw RadrootsAppleFileError.invalidRequest("file relative path must not be absolute")
+            throw RadrootsAppleFileError.invalidRequest
         }
 
         let candidateURL = rootURL.appendingPathComponent(trimmedPath).standardizedFileURL
@@ -656,10 +739,10 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
             if allowRootDirectory {
                 return candidateURL
             }
-            throw RadrootsAppleFileError.invalidRequest("file relative path cannot resolve to its root")
+            throw RadrootsAppleFileError.invalidRequest
         }
         guard candidateURL.path.hasPrefix(rootURL.path + "/") else {
-            throw RadrootsAppleFileError.invalidRequest("file relative path must not escape its scope")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return candidateURL
     }
@@ -672,18 +755,18 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
     public static func normalizedAppIdentifier(_ appIdentifier: String) throws -> String {
         let trimmed = appIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw RadrootsAppleFileError.invalidRequest("app identifier cannot be empty")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return trimmed
     }
 
     public static func normalizedRootURL(_ rootURL: URL, field: String) throws -> URL {
         guard rootURL.isFileURL else {
-            throw RadrootsAppleFileError.invalidRequest("\(field) must be a file URL")
+            throw RadrootsAppleFileError.invalidRequest
         }
         let standardized = rootURL.standardizedFileURL
         guard standardized.path.hasPrefix("/") else {
-            throw RadrootsAppleFileError.invalidRequest("\(field) must be absolute")
+            throw RadrootsAppleFileError.invalidRequest
         }
         return standardized
     }
@@ -692,7 +775,7 @@ public struct RadrootsAppleFileRoots: Sendable, Equatable {
         guard directory.isFileURL,
               let pointer = directory.path.withCString({ Darwin.realpath($0, nil) })
         else {
-            throw RadrootsAppleFileError.permanentFailure("platform file root is unavailable")
+            throw RadrootsAppleFileError.permanentFailure
         }
         defer { Darwin.free(pointer) }
         return URL(fileURLWithPath: String(cString: pointer), isDirectory: true)

@@ -25,10 +25,10 @@ import Testing
 @Test func fakeExternalActionsReturnsConfiguredFailures() async throws {
     let destination = RadrootsExternalActionDestination.appSettings
     let actions = RadrootsFakeExternalActions(
-        openOutcome: .failure(.unavailable("external actions unavailable"))
+        openOutcome: .failure(.unavailable)
     )
 
-    await #expect(throws: RadrootsExternalActionError.unavailable("external actions unavailable")) {
+    await #expect(throws: RadrootsExternalActionError.unavailable) {
         try await actions.open(RadrootsExternalActionRequest(destination: destination))
     }
 

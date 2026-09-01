@@ -17,6 +17,15 @@ if git grep -I -n -E -e '-----BEGIN ([A-Z0-9 ]+ )?PRIVATE KEY-----|AKIA[0-9A-Z]{
   echo "boundary_invalid: production source contains credential material" >&2
   exit 1
 fi
+if git grep -I -n -E \
+  -e 'localizedDescription' \
+  -e 'public let errorMessage: String' \
+  -e 'case rejected\(code: String\)' \
+  -e 'case (invalidRequest|unavailable|permissionDenied|userCancelled|transientFailure|permanentFailure|transferFailure|persistenceFailure|notFound|blockedByPolicy|timeout|cancelled|schedulerFailure|preparationFailure|keychainStatus)\([^)]*String' \
+  -- Sources >/dev/null; then
+  echo "boundary_invalid: public error surface accepts arbitrary diagnostic text" >&2
+  exit 1
+fi
 
 swift build
 bin_path="$(swift build --show-bin-path)"

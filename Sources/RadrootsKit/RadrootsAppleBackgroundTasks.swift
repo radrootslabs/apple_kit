@@ -86,15 +86,15 @@ public struct RadrootsAppleBackgroundTaskSchedulerAdapters: Sendable {
 
     public static let unavailable = Self(
         register: { _ in
-            throw RadrootsBackgroundTaskError.unavailable("background task scheduling is unavailable on this platform")
+            throw RadrootsBackgroundTaskError.unavailable
         },
         submit: { _ in
-            throw RadrootsBackgroundTaskError.unavailable("background task scheduling is unavailable on this platform")
+            throw RadrootsBackgroundTaskError.unavailable
         },
         cancel: { _ in },
         cancelAll: {},
         pendingTasks: {
-            throw RadrootsBackgroundTaskError.unavailable("background task scheduling is unavailable on this platform")
+            throw RadrootsBackgroundTaskError.unavailable
         }
     )
 }
@@ -108,17 +108,30 @@ public final class RadrootsAppleBackgroundTaskScheduler: RadrootsBackgroundTaskS
 
     @discardableResult
     public func register(_ registration: RadrootsAppleBackgroundTaskRegistration) async throws -> Bool {
-        let registered = try await adapters.register(registration)
+        let registered: Bool
+        do {
+            registered = try await adapters.register(registration)
+        } catch let error as RadrootsBackgroundTaskError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTaskError.schedulerFailure
+        }
         guard registered else {
-            throw RadrootsBackgroundTaskError.schedulerFailure(
-                "background task registration was rejected"
-            )
+            throw RadrootsBackgroundTaskError.schedulerFailure
         }
         return registered
     }
 
-    public func submit(_ request: RadrootsBackgroundTaskRequest) async throws -> RadrootsBackgroundTaskSnapshot {
+    public func submit(_ request: RadrootsBackgroundTaskRequest) async throws
+        -> RadrootsBackgroundTaskSnapshot
+    {
+        do {
         try await adapters.submit(request)
+        } catch let error as RadrootsBackgroundTaskError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTaskError.schedulerFailure
+        }
         return try RadrootsBackgroundTaskSnapshot(
             request: request,
             submittedAt: adapters.now()
@@ -134,13 +147,21 @@ public final class RadrootsAppleBackgroundTaskScheduler: RadrootsBackgroundTaskS
     }
 
     public func pendingTasks() async throws -> [RadrootsBackgroundTaskSnapshot] {
-        try await adapters.pendingTasks()
+        do {
+            return try await adapters.pendingTasks()
+        } catch let error as RadrootsBackgroundTaskError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTaskError.schedulerFailure
+        }
     }
 }
 
 #if canImport(BackgroundTasks) && os(iOS)
-    private extension RadrootsAppleBackgroundTaskSchedulerAdapters {
-        static func platformRequest(for request: RadrootsBackgroundTaskRequest) -> BGTaskRequest {
+    extension RadrootsAppleBackgroundTaskSchedulerAdapters {
+        fileprivate static func platformRequest(for request: RadrootsBackgroundTaskRequest)
+            -> BGTaskRequest
+        {
             let platformRequest: BGTaskRequest
             switch request.kind {
             case .appRefresh:
@@ -155,12 +176,17 @@ public final class RadrootsAppleBackgroundTaskScheduler: RadrootsBackgroundTaskS
             return platformRequest
         }
 
-        static func pendingPlatformTaskSnapshots() async throws -> [RadrootsBackgroundTaskSnapshot] {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[RadrootsBackgroundTaskSnapshot], Error>) in
+        fileprivate static func pendingPlatformTaskSnapshots() async throws
+            -> [RadrootsBackgroundTaskSnapshot]
+        {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<[RadrootsBackgroundTaskSnapshot], Error>) in
                 BGTaskScheduler.shared.getPendingTaskRequests { requests in
                     do {
-                        let snapshots: [RadrootsBackgroundTaskSnapshot] = try requests.compactMap { request -> RadrootsBackgroundTaskSnapshot? in
-                            guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier) else {
+                        let snapshots: [RadrootsBackgroundTaskSnapshot] = try requests.compactMap {
+                            request -> RadrootsBackgroundTaskSnapshot? in
+                            guard let identifier = try? RadrootsBackgroundTaskIdentifier(request.identifier)
+                            else {
                                 return nil
                             }
                             let kind: RadrootsBackgroundTaskKind

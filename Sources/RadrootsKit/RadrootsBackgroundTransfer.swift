@@ -1,19 +1,19 @@
 import Foundation
 
 public enum RadrootsBackgroundTransferError: Error, Equatable, Sendable {
-  case invalidRequest(String)
-  case unavailable(String)
-  case transferFailure(String)
-  case persistenceFailure(String)
+    case invalidRequest
+    case unavailable
+    case transferFailure
+    case persistenceFailure
 }
 
 extension RadrootsBackgroundTransferError: LocalizedError {
   public var errorDescription: String? {
     switch self {
-    case .invalidRequest(let message): message
-    case .unavailable(let message): message
-    case .transferFailure(let message): message
-    case .persistenceFailure(let message): message
+        case .invalidRequest: "The background transfer request is invalid."
+        case .unavailable: "Background transfer is unavailable."
+        case .transferFailure: "The background transfer could not be completed."
+        case .persistenceFailure: "The background transfer state could not be saved."
     }
   }
 }
@@ -83,8 +83,26 @@ public enum RadrootsBackgroundTransferState: String, Sendable, Equatable, Hashab
   case interrupted
 }
 
-public enum RadrootsBackgroundTransferNetworkPolicy: String, Sendable, Equatable, Hashable, Codable
+public enum RadrootsBackgroundTransferFailure: String, Sendable, Equatable, Hashable, Codable,
+    CaseIterable
 {
+    case enqueueFailed = "background_transfer_enqueue_failed"
+    case expired = "background_transfer_expired"
+    case interrupted = "background_transfer_interrupted"
+    case verificationRejected = "background_transfer_verification_rejected"
+    case transferTooLarge = "background_transfer_transfer_too_large"
+    case responseTooLarge = "background_transfer_response_too_large"
+    case responseMediaType = "background_transfer_response_media_type"
+    case responseContentEncoding = "background_transfer_response_content_encoding"
+    case platformFailure = "background_transfer_platform_failure"
+    case responseMissing = "background_transfer_response_missing"
+    case httpStatus = "background_transfer_http_status"
+    case responseInvalid = "background_transfer_response_invalid"
+    case downloadStagingFailure = "background_transfer_download_staging_failure"
+    case destinationFailure = "background_transfer_destination_failure"
+}
+
+public enum RadrootsBackgroundTransferNetworkPolicy: String, Sendable, Equatable, Hashable, Codable {
   case publicHTTPS
   case simulatorLoopbackHTTP
 }
@@ -95,16 +113,14 @@ public struct RadrootsBackgroundTransferResponsePolicy: Sendable, Equatable, Has
 
   public init(maximumBodyBytes: Int = 0, acceptedMediaTypes: [String] = []) throws {
     guard (0...65536).contains(maximumBodyBytes), acceptedMediaTypes.count <= 8 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response policy is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     let normalized = try acceptedMediaTypes.map {
       try RadrootsBackgroundTransferValidation.normalizedMediaType($0)
     }
     guard Set(normalized).count == normalized.count, (maximumBodyBytes == 0) == normalized.isEmpty
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response policy is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     self.maximumBodyBytes = maximumBodyBytes
     self.acceptedMediaTypes = normalized
@@ -151,8 +167,7 @@ public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable,
     statusCode: Int, mediaType: String?, contentEncoding: String? = nil, body: Data?
   ) throws {
     guard (100...599).contains(statusCode), body?.count ?? 0 <= 65536 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     self.statusCode = statusCode
     self.mediaType = try mediaType.map {
@@ -161,8 +176,7 @@ public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable,
     let normalizedEncoding = contentEncoding?.trimmingCharacters(in: .whitespacesAndNewlines)
       .lowercased()
     guard normalizedEncoding == nil || normalizedEncoding == "identity" else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response content encoding is denied")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     self.contentEncoding = normalizedEncoding
     self.body = body
@@ -312,8 +326,7 @@ public struct RadrootsBackgroundDownloadedArtifact: Sendable, Equatable, Hashabl
     guard sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil, byteSize > 0,
       byteSize <= RadrootsBackgroundTransferRequest.absoluteMaximumTransferBytes
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer downloaded artifact is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     try RadrootsBackgroundTransferValidation.validateLocalFile(.file(file))
     self.file = file
@@ -331,7 +344,7 @@ public struct RadrootsBackgroundDownloadedArtifact: Sendable, Equatable, Hashabl
 
 public enum RadrootsBackgroundTransferVerification: Sendable, Equatable {
   case accepted
-  case rejected(code: String)
+    case rejected(failure: RadrootsBackgroundTransferFailure)
 }
 
 public struct RadrootsBackgroundTransferHandle: Sendable, Equatable, Hashable, Codable,
@@ -360,8 +373,7 @@ public struct RadrootsBackgroundTransferHandle: Sendable, Equatable, Hashable, C
       RadrootsBackgroundTransferIdentifier.self, forKey: .identifier)
     let request = try values.decode(RadrootsBackgroundTransferRequest.self, forKey: .request)
     guard identifier == request.identifier else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer handle identifier does not match its request")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     self.init(request: request)
   }
@@ -379,18 +391,14 @@ public struct RadrootsBackgroundTransferProgress: Sendable, Equatable, Hashable,
 
   public init(bytesTransferred: Int64, totalBytesExpected: Int64? = nil) throws {
     guard bytesTransferred >= 0 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer bytes transferred cannot be negative")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     if let totalBytesExpected {
       guard totalBytesExpected >= 0 else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer expected byte count cannot be negative")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       guard totalBytesExpected >= bytesTransferred else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer expected byte count cannot be less than transferred bytes"
-        )
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
     self.bytesTransferred = bytesTransferred
@@ -432,7 +440,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
   public let request: RadrootsBackgroundTransferRequest
   public let state: RadrootsBackgroundTransferState
   public let progress: RadrootsBackgroundTransferProgress
-  public let errorMessage: String?
+    public let failure: RadrootsBackgroundTransferFailure?
   public let response: RadrootsBackgroundTransferResponse?
   public let downloadedArtifact: RadrootsBackgroundDownloadedArtifact?
   public let possibleRemoteOrphan: Bool
@@ -440,18 +448,17 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
 
   public init(
     request: RadrootsBackgroundTransferRequest, state: RadrootsBackgroundTransferState = .queued,
-    progress: RadrootsBackgroundTransferProgress = .zero, errorMessage: String? = nil,
+        progress: RadrootsBackgroundTransferProgress = .zero,
+        failure: RadrootsBackgroundTransferFailure? = nil,
     response: RadrootsBackgroundTransferResponse? = nil,
     downloadedArtifact: RadrootsBackgroundDownloadedArtifact? = nil,
     possibleRemoteOrphan: Bool = false, updatedAt: Date = Date()
   ) throws {
     guard updatedAt.timeIntervalSinceReferenceDate.isFinite else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer updated date must be finite")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard response == nil || state == .awaitingVerification || state == .completed else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response requires verification state")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     if let response {
       try RadrootsBackgroundTransferValidation.validate(
@@ -461,8 +468,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
       guard case .upload = request.operation,
         state == .failed || state == .interrupted || state == .cancelled || state == .expired
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer orphan marker is invalid")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
     if let downloadedArtifact {
@@ -470,16 +476,14 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
         destination == .file(downloadedArtifact.file),
         state == .awaitingVerification || state == .completed
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer downloaded artifact state is invalid")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
     identifier = request.identifier
     self.request = request
     self.state = state
     self.progress = progress
-    self.errorMessage = try RadrootsBackgroundTransferValidation.normalizedOptionalMessage(
-      errorMessage)
+        self.failure = failure
     self.response = response
     self.downloadedArtifact = downloadedArtifact
     self.possibleRemoteOrphan = possibleRemoteOrphan
@@ -495,7 +499,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
   func redactedForPersistence() throws -> Self {
     try Self(
       request: request.redactedForPersistence(), state: state, progress: progress,
-      errorMessage: errorMessage, response: response,
+            failure: failure, response: response,
       downloadedArtifact: downloadedArtifact, possibleRemoteOrphan: possibleRemoteOrphan,
       updatedAt: updatedAt
     )
@@ -505,7 +509,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
     case request
     case state
     case progress
-    case errorMessage
+        case failure
     case response
     case downloadedArtifact
     case possibleRemoteOrphan
@@ -518,7 +522,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
       request: values.decode(RadrootsBackgroundTransferRequest.self, forKey: .request),
       state: values.decode(RadrootsBackgroundTransferState.self, forKey: .state),
       progress: values.decode(RadrootsBackgroundTransferProgress.self, forKey: .progress),
-      errorMessage: values.decodeIfPresent(String.self, forKey: .errorMessage),
+            failure: values.decodeIfPresent(RadrootsBackgroundTransferFailure.self, forKey: .failure),
       response: values.decodeIfPresent(RadrootsBackgroundTransferResponse.self, forKey: .response),
       downloadedArtifact: values.decodeIfPresent(
         RadrootsBackgroundDownloadedArtifact.self, forKey: .downloadedArtifact),
@@ -533,7 +537,7 @@ public struct RadrootsBackgroundTransferSnapshot: Sendable, Equatable, Hashable,
     try values.encode(request, forKey: .request)
     try values.encode(state, forKey: .state)
     try values.encode(progress, forKey: .progress)
-    try values.encodeIfPresent(errorMessage, forKey: .errorMessage)
+        try values.encodeIfPresent(failure, forKey: .failure)
     try values.encodeIfPresent(response, forKey: .response)
     try values.encodeIfPresent(downloadedArtifact, forKey: .downloadedArtifact)
     try values.encode(possibleRemoteOrphan, forKey: .possibleRemoteOrphan)
@@ -593,16 +597,14 @@ public struct RadrootsAppleBackgroundTransferFileResolver: RadrootsBackgroundTra
     let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL
     let resolvedCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL
     guard resolvedCandidate.path.hasPrefix(resolvedRoot.path + "/") else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer local file resolved outside its root")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     return candidate
   }
 
   public func read(_ file: RadrootsBackgroundTransferLocalFile, maximumBytes: Int) throws -> Data {
     guard maximumBytes >= 0 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer local file byte limit is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     let root: URL
     let relativePath: String
@@ -624,15 +626,13 @@ public struct RadrootsAppleBackgroundTransferFileResolver: RadrootsBackgroundTra
         maximumBytes: maximumBytes
       )
       guard expectedBytes == nil || expectedBytes == data.count else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer local file size does not match its handle")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       return data
     } catch let error as RadrootsBackgroundTransferError {
       throw error
     } catch {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer local file failed governed admission")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
   }
 }
@@ -690,8 +690,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
       let usedLegacyEncoding: Bool
       if let envelope = try? decoder.decode(Envelope.self, from: data) {
         guard envelope.schemaVersion == 1 else {
-          throw RadrootsBackgroundTransferError.persistenceFailure(
-            "background transfer persistence version is unsupported")
+                    throw RadrootsBackgroundTransferError.persistenceFailure
         }
         decoded = envelope.snapshots
         usedLegacyEncoding = false
@@ -710,8 +709,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
       }
       return snapshots
     } catch {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer persistence could not be read")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
   }
 
@@ -723,8 +721,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
       try snapshots.append(snapshot.redactedForPersistence())
       try write(snapshots.sorted { left, right in left.identifier < right.identifier })
     } catch let error as RadrootsBackgroundTransferError { throw error } catch {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer persistence could not be written")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
   }
 
@@ -735,8 +732,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
       snapshots.removeAll { $0.identifier == identifier }
       try write(snapshots)
     } catch let error as RadrootsBackgroundTransferError { throw error } catch {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer persistence could not be written")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
   }
 
@@ -747,8 +743,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         try fileManager.removeItem(at: url)
       }
     } catch let error as RadrootsBackgroundTransferError { throw error } catch {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer persistence could not be removed")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
   }
 
@@ -758,8 +753,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
       at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let data = try encoder.encode(Envelope(snapshots: snapshots))
     guard data.count <= Self.maximumPersistenceBytes else {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer persistence exceeds its byte limit")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
     try data.write(to: url, options: [.atomic])
     #if os(iOS)
@@ -782,56 +776,49 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
 
   private func requireProtectedData() throws {
     guard protectedData.currentState() == .available else {
-      throw RadrootsBackgroundTransferError.persistenceFailure(
-        "background transfer protected data is unavailable")
+            throw RadrootsBackgroundTransferError.persistenceFailure
     }
   }
 }
 
 public struct RadrootsUnavailableBackgroundTransfer: RadrootsBackgroundTransfer, Sendable {
-  private let reason: String
-
-  public init(reason: String = "background transfer is unavailable on this platform") {
-    let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-    self.reason =
-      trimmedReason.isEmpty ? "background transfer is unavailable on this platform" : trimmedReason
-  }
+    public init() {}
 
   public func enqueue(_: RadrootsBackgroundTransferRequest) async throws
     -> RadrootsBackgroundTransferHandle
   {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func retry(_: RadrootsBackgroundTransferRequest) async throws
     -> RadrootsBackgroundTransferHandle
   {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func cancel(_: RadrootsBackgroundTransferIdentifier) async throws {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func expire(_: RadrootsBackgroundTransferIdentifier) async throws {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func settle(
     _: RadrootsBackgroundTransferIdentifier,
     verification _: RadrootsBackgroundTransferVerification
   ) async throws {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func snapshot(for _: RadrootsBackgroundTransferIdentifier) async throws
     -> RadrootsBackgroundTransferSnapshot?
   {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func snapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
-    throw RadrootsBackgroundTransferError.unavailable(reason)
+        throw RadrootsBackgroundTransferError.unavailable
   }
 
   public func handleEventsForBackgroundURLSession(
@@ -845,24 +832,19 @@ public enum RadrootsBackgroundTransferValidation {
   public static func normalizedIdentifier(_ value: String) throws -> String {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !trimmed.isEmpty else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer identifier must not be empty")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard trimmed.count <= 128 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer identifier is too long")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard
       trimmed.range(of: "^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$", options: .regularExpression)
         != nil
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer identifier must use lowercase safe identifier characters"
-      )
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard !trimmed.contains("..") else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer identifier cannot contain empty path components")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     return trimmed
   }
@@ -881,42 +863,23 @@ public enum RadrootsBackgroundTransferValidation {
     guard maximumTransferBytes > 0,
       maximumTransferBytes <= RadrootsBackgroundTransferRequest.absoluteMaximumTransferBytes
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer byte limit is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     if case .download = operation, responsePolicy != .discard {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background downloads must discard the separate response body")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     if let expectedSourceSHA256 {
       guard case .upload = operation,
         expectedSourceSHA256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer source digest is invalid")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
     if case .upload(.stagedBlob(let blob)) = operation,
       UInt64(blob.sizeBytes) > maximumTransferBytes
     {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background upload source exceeds its byte limit")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
-  }
-
-  public static func normalizedOptionalMessage(_ value: String?) throws -> String? {
-    guard let value else { return nil }
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-    guard trimmed.count <= 240 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer message is too long")
-    }
-    guard doesNotContainControlCharacters(trimmed) else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer message cannot contain control characters")
-    }
-    return trimmed
   }
 
   private static func validate(
@@ -927,26 +890,22 @@ public enum RadrootsBackgroundTransferValidation {
       components.user == nil,
       components.password == nil, components.query == nil, components.fragment == nil
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer remote URL is unsafe")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     let scheme = components.scheme?.lowercased()
     switch networkPolicy {
     case .publicHTTPS:
       guard scheme == "https" else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer remote URL must use public HTTPS")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     case .simulatorLoopbackHTTP:
       #if os(iOS) && !targetEnvironment(simulator)
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer simulator policy is unavailable on this device")
+                throw RadrootsBackgroundTransferError.invalidRequest
       #else
         guard scheme == "http", let host = components.host?.lowercased(),
           host == "localhost" || host == "127.0.0.1" || host == "::1"
         else {
-          throw RadrootsBackgroundTransferError.invalidRequest(
-            "background transfer simulator URL must use loopback HTTP")
+                    throw RadrootsBackgroundTransferError.invalidRequest
         }
       #endif
     }
@@ -958,18 +917,15 @@ public enum RadrootsBackgroundTransferValidation {
     switch operation {
     case .download(let destination):
       guard method == .get else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background download transfers must use GET")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       guard case .file = destination else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background downloads require a scoped destination file")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       try validateLocalFile(destination)
     case .upload(let source):
       guard method == .post || method == .put else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background upload transfers must use POST or PUT")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       try validateLocalFile(source)
     }
@@ -983,8 +939,7 @@ public enum RadrootsBackgroundTransferValidation {
         !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == ".." }
         )
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer local file is unsafe")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     case .stagedBlob(let blob):
       guard
@@ -993,24 +948,21 @@ public enum RadrootsBackgroundTransferValidation {
           filenameHint: blob.filenameHint
         )) != nil
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer staged blob is invalid")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
   }
 
   private static func validate(headers: [String: String]) throws {
     guard headers.count <= 32 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer header count is too large")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     for (key, value) in headers {
       try validateSafeText(key, field: "background transfer header name", maximumLength: 80)
       guard key.range(of: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$", options: .regularExpression) != nil,
         !["connection", "content-length", "host", "transfer-encoding"].contains(key.lowercased())
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer header name is unsafe")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       try validateSafeText(value, field: "background transfer header value", maximumLength: 8192)
     }
@@ -1018,8 +970,7 @@ public enum RadrootsBackgroundTransferValidation {
 
   private static func validate(metadata: [String: String]) throws {
     guard metadata.count <= 32 else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer metadata count is too large")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     for (key, value) in metadata {
       try validateSafeText(key, field: "background transfer metadata key", maximumLength: 80)
@@ -1029,8 +980,7 @@ public enum RadrootsBackgroundTransferValidation {
         !["auth", "token", "secret", "credential", "cookie", "header", "path", "url"].contains(
           where: { unsafeKey.contains($0) })
       else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer metadata key is sensitive")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
     }
   }
@@ -1045,8 +995,7 @@ public enum RadrootsBackgroundTransferValidation {
         != nil,
       normalized.utf8.count <= 127
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer media type is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     return normalized
   }
@@ -1055,13 +1004,11 @@ public enum RadrootsBackgroundTransferValidation {
     response: RadrootsBackgroundTransferResponse, policy: RadrootsBackgroundTransferResponsePolicy
   ) throws {
     guard (200...299).contains(response.statusCode) else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response status is invalid")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     if policy.maximumBodyBytes == 0 {
       guard response.body == nil, response.mediaType == nil else {
-        throw RadrootsBackgroundTransferError.invalidRequest(
-          "background transfer response body is not permitted")
+                throw RadrootsBackgroundTransferError.invalidRequest
       }
       return
     }
@@ -1069,22 +1016,20 @@ public enum RadrootsBackgroundTransferValidation {
       let mediaType = response.mediaType,
       policy.acceptedMediaTypes.contains(mediaType)
     else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "background transfer response violates its policy")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
   }
 
   private static func validateSafeText(_ value: String, field: String, maximumLength: Int) throws {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
-      throw RadrootsBackgroundTransferError.invalidRequest("\(field) must not be empty")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard trimmed.count <= maximumLength else {
-      throw RadrootsBackgroundTransferError.invalidRequest("\(field) is too long")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
     guard doesNotContainControlCharacters(trimmed) else {
-      throw RadrootsBackgroundTransferError.invalidRequest(
-        "\(field) cannot contain control characters")
+            throw RadrootsBackgroundTransferError.invalidRequest
     }
   }
 

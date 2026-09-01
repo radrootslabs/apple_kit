@@ -62,14 +62,21 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
         #endif
     }
 
-    public func scanDocument(_ request: RadrootsDocumentScanRequest) async throws -> RadrootsScannedDocument {
+    public func scanDocument(_ request: RadrootsDocumentScanRequest) async throws
+        -> RadrootsScannedDocument
+    {
         #if canImport(UIKit) && canImport(VisionKit)
             let support = try await currentSupport()
             guard support.interactiveScanAvailable else {
-                throw RadrootsCaptureIntakeError.unavailable("document scanner is unavailable")
+                throw RadrootsCaptureIntakeError.unavailable
             }
-            let presenter = try await MainActor.run {
+            let presenter: UIViewController
+            do {
+                presenter = try await MainActor.run {
                 try viewControllerProvider()
+            }
+            } catch {
+                throw RadrootsAppleMediaPicker.adapt(error: error)
             }
             let writer = RadrootsAppleDocumentScanWriter(fileAccess: fileAccess)
             let coordinatorID = UUID()
@@ -92,7 +99,7 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
                 presenter.present(controller, animated: true)
             }
         #else
-            throw RadrootsCaptureIntakeError.unavailable("document scanner is unavailable")
+            throw RadrootsCaptureIntakeError.unavailable
         #endif
     }
 
@@ -107,7 +114,9 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
 
 #if canImport(UIKit) && canImport(VisionKit)
     @MainActor
-    private final class RadrootsAppleDocumentScannerCoordinator: NSObject, @preconcurrency VNDocumentCameraViewControllerDelegate {
+    private final class RadrootsAppleDocumentScannerCoordinator: NSObject,
+        @preconcurrency VNDocumentCameraViewControllerDelegate
+    {
         var completion: (@Sendable (Result<RadrootsScannedDocument, RadrootsCaptureIntakeError>) -> Void)?
 
         private let writer: RadrootsAppleDocumentScanWriter
@@ -128,7 +137,7 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
 
         func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
             controller.dismiss(animated: true)
-            finish(.failure(.userCancelled("document scan was cancelled")))
+            finish(.failure(.userCancelled))
         }
 
         func documentCameraViewController(
@@ -146,7 +155,9 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
             controller.dismiss(animated: true)
             do {
                 let rendered = try Self.renderPDF(scan)
-                try finish(.success(writer.persistPDF(
+                try finish(
+                    .success(
+                        writer.persistPDF(
                     data: rendered.data,
                     pageCount: rendered.pageCount,
                     destinationScope: request.destinationScope
@@ -159,10 +170,10 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
         private static func renderPDF(_ scan: VNDocumentCameraScan) throws -> (data: Data, pageCount: UInt16) {
             let pageCount = scan.pageCount
             guard pageCount > 0 else {
-                throw RadrootsCaptureIntakeError.invalidRequest("document scanner requires at least one page")
+                throw RadrootsCaptureIntakeError.invalidRequest
             }
             guard pageCount <= Int(UInt16.max) else {
-                throw RadrootsCaptureIntakeError.invalidRequest("document scanner page count exceeds supported range")
+                throw RadrootsCaptureIntakeError.invalidRequest
             }
             let images = (0 ..< pageCount).map { scan.imageOfPage(at: $0) }
             let bounds = pageBounds(images: images)
@@ -174,7 +185,7 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
                 }
             }
             guard !data.isEmpty else {
-                throw RadrootsCaptureIntakeError.transientFailure("document scanner failed to render a pdf")
+                throw RadrootsCaptureIntakeError.transientFailure
             }
             return (data, UInt16(pageCount))
         }
@@ -206,7 +217,7 @@ public final class RadrootsAppleDocumentScanner: RadrootsDocumentScanner, @unche
         func cancelPresentation(_ controller: VNDocumentCameraViewController) {
             guard !didResolve else { return }
             controller.dismiss(animated: true)
-            finish(.failure(.transientFailure("document scanner presentation was cancelled")))
+            finish(.failure(.transientFailure))
         }
 
         private func finish(_ result: Result<RadrootsScannedDocument, RadrootsCaptureIntakeError>) {

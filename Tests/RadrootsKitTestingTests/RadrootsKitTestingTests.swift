@@ -10,7 +10,8 @@ import Testing
     )
 
     #expect(config.environment["RADROOTS_TEST"] == "true")
-    #expect(config.arguments == [
+    #expect(
+        config.arguments == [
         "--radroots-test",
         "-AppleLanguages",
         "(en)",
@@ -25,7 +26,8 @@ import Testing
         arguments: []
     )
 
-    #expect(config.mergedEnvironment(over: ["A": "old", "C": "keep"]) == [
+    #expect(
+        config.mergedEnvironment(over: ["A": "old", "C": "keep"]) == [
         "A": "override",
         "B": "new",
         "C": "keep",
@@ -126,9 +128,9 @@ import Testing
         ),
         currentLocationOutcome: .success(reading)
     )
-    await service.setCurrentLocationOutcome(.failure(.timeout("timed out")))
+    await service.setCurrentLocationOutcome(.failure(.timeout))
 
-    await #expect(throws: RadrootsLocationServicesError.timeout("timed out")) {
+    await #expect(throws: RadrootsLocationServicesError.timeout) {
         _ = try await service.currentLocation(RadrootsCurrentLocationRequest(timeoutSeconds: 2))
     }
 }

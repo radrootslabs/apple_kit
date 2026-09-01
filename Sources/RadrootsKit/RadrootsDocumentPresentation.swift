@@ -45,7 +45,9 @@ public enum RadrootsDocumentPresentationAdapter {
         )
     }
 
-    public static func transferItem(for request: RadrootsShareRequest) throws -> RadrootsShareTransferItem {
+    public static func transferItem(for request: RadrootsShareRequest) throws
+        -> RadrootsShareTransferItem
+    {
         try transferItem(for: request, fileAccess: nil)
     }
 
@@ -63,11 +65,11 @@ public enum RadrootsDocumentPresentationAdapter {
     ) throws -> RadrootsShareTransferItem {
         for item in request.items {
             switch try item.normalized {
-            case let .text(text):
+            case .text(let text):
                 return try RadrootsShareTransferItem(text: text, subject: request.subject)
-            case let .url(url):
+            case .url(let url):
                 return try RadrootsShareTransferItem(url: url, subject: request.subject)
-            case let .file(file, suggestedFilename, mediaType, sizeBytes):
+            case .file(let file, let suggestedFilename, let mediaType, let sizeBytes):
                 guard let fileAccess else {
                     continue
                 }
@@ -83,7 +85,7 @@ public enum RadrootsDocumentPresentationAdapter {
                     )
                 )
                 return try RadrootsShareTransferItem(preparedExport: export, subject: request.subject)
-            case let .stagedBlob(stagedBlob, suggestedFilename):
+            case .stagedBlob(let stagedBlob, let suggestedFilename):
                 guard let fileAccess else {
                     continue
                 }
@@ -101,10 +103,12 @@ public enum RadrootsDocumentPresentationAdapter {
                 return try RadrootsShareTransferItem(preparedExport: export, subject: request.subject)
             }
         }
-        throw RadrootsDocumentInterchangeError.invalidRequest("share request does not contain a supported public share item")
+        throw RadrootsDocumentInterchangeError.invalidRequest
     }
 
-    private static func shareFilename(explicitFilename: String?, fallbackFilename: String) throws -> String {
+    private static func shareFilename(explicitFilename: String?, fallbackFilename: String) throws
+        -> String
+    {
         if let explicitFilename {
             return try RadrootsDocumentInterchangeValidation.normalizedFilename(explicitFilename)
         }
@@ -127,7 +131,9 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     public let subject: String?
 
     public init(text: String, subject: String? = nil) throws {
-        payload = try .text(RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text"))
+        payload = try .text(
+            RadrootsDocumentInterchangeValidation.normalizedPublicText(text, field: "share transfer text")
+        )
         self.subject = try RadrootsDocumentInterchangeValidation.normalizedOptionalPublicText(
             subject,
             field: "share transfer subject"
@@ -152,9 +158,9 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
 
     public var text: String? {
         switch payload {
-        case let .text(text):
+        case .text(let text):
             text
-        case let .url(url):
+        case .url(let url):
             url.absoluteString
         case .file:
             nil
@@ -162,14 +168,14 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
     }
 
     public var url: URL? {
-        guard case let .url(url) = payload else {
+        guard case .url(let url) = payload else {
             return nil
         }
         return url
     }
 
     public var preparedExport: RadrootsPreparedExportDocument? {
-        guard case let .file(preparedExport) = payload else {
+        guard case .file(let preparedExport) = payload else {
             return nil
         }
         return preparedExport
@@ -177,11 +183,11 @@ public struct RadrootsShareTransferItem: Transferable, Sendable, Equatable, Hash
 
     public var transferText: String {
         switch payload {
-        case let .text(text):
+        case .text(let text):
             text
-        case let .url(url):
+        case .url(let url):
             url.absoluteString
-        case let .file(preparedExport):
+        case .file(let preparedExport):
             preparedExport.suggestedFilename
         }
     }
@@ -203,7 +209,7 @@ public struct RadrootsPreparedExportFileDocument: FileDocument {
     }
 
     public init(configuration _: ReadConfiguration) throws {
-        throw RadrootsDocumentInterchangeError.invalidRequest("prepared export documents are write only")
+        throw RadrootsDocumentInterchangeError.invalidRequest
     }
 
     public func fileWrapper(configuration _: WriteConfiguration) throws -> FileWrapper {
@@ -236,7 +242,9 @@ public struct RadrootsDocumentImportPresentationModifier: ViewModifier {
                     }
                 }
             ),
-            allowedContentTypes: request.map(RadrootsDocumentPresentationAdapter.contentTypes(for:)) ?? [.item],
+            allowedContentTypes: request.map(RadrootsDocumentPresentationAdapter.contentTypes(for:)) ?? [
+                .item
+            ],
             allowsMultipleSelection: request?.allowsMultipleSelection ?? false
         ) { result in
             handleImportResult(result)
@@ -251,7 +259,7 @@ public struct RadrootsDocumentImportPresentationModifier: ViewModifier {
         do {
             let urls = try result.get()
             guard !urls.isEmpty else {
-                throw RadrootsDocumentInterchangeError.userCancelled("document import was cancelled")
+                throw RadrootsDocumentInterchangeError.userCancelled
             }
             let documents = try urls.map { sourceURL in
                 let destination = try RadrootsDocumentPresentationAdapter.importDestination(
@@ -296,7 +304,8 @@ public struct RadrootsDocumentExportPresentationModifier: ViewModifier {
                 }
             ),
             document: preparedExport.map(RadrootsPreparedExportFileDocument.init(preparedExport:)),
-            contentType: RadrootsDocumentPresentationAdapter.contentType(forMediaType: preparedExport?.mediaType),
+            contentType: RadrootsDocumentPresentationAdapter.contentType(
+                forMediaType: preparedExport?.mediaType),
             defaultFilename: preparedExport?.suggestedFilename
         ) { result in
             handleExportResult(result)
@@ -353,21 +362,21 @@ public struct RadrootsSharePresentationLink<Label: View>: View {
 
     public var body: some View {
         switch transferItem.payload {
-        case let .text(text):
+        case .text(let text):
             ShareLink(
                 item: text,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),
                 message: Text(text),
                 label: label
             )
-        case let .url(url):
+        case .url(let url):
             ShareLink(
                 item: url,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),
                 message: Text(url.absoluteString),
                 label: label
             )
-        case let .file(preparedExport):
+        case .file(let preparedExport):
             ShareLink(
                 item: preparedExport.fileURL,
                 subject: transferItem.subject.map(Text.init) ?? Text(""),
@@ -378,8 +387,8 @@ public struct RadrootsSharePresentationLink<Label: View>: View {
     }
 }
 
-public extension View {
-    func radrootsDocumentImporter(
+extension View {
+    public func radrootsDocumentImporter(
         request: Binding<RadrootsDocumentImportRequest?>,
         fileAccess: any RadrootsFileAccess,
         onCompletion: @escaping (Result<RadrootsDocumentImportResult, Error>) -> Void
@@ -393,7 +402,7 @@ public extension View {
         )
     }
 
-    func radrootsDocumentExporter(
+    public func radrootsDocumentExporter(
         preparedExport: Binding<RadrootsPreparedExportDocument?>,
         onCompletion: @escaping (Result<RadrootsExportDocumentResult, Error>) -> Void
     ) -> some View {

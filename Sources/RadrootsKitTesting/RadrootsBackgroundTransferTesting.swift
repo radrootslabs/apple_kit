@@ -2,8 +2,7 @@ import Foundation
 import RadrootsKit
 
 public actor RadrootsInMemoryBackgroundTransferStore: RadrootsBackgroundTransferStore {
-  private var snapshotsByIdentifier:
-    [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferSnapshot]
+    private var snapshotsByIdentifier: [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferSnapshot]
 
   public init(snapshots: [RadrootsBackgroundTransferSnapshot] = []) {
     snapshotsByIdentifier = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.identifier, $0) })
@@ -79,8 +78,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
 
   public func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
     cancelledIdentifiersValue.append(identifier)
-    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
-    {
+        if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }) {
       let snapshot = try RadrootsBackgroundTransferSnapshot(
         request: existing.request,
         state: .cancelled,
@@ -93,14 +91,13 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
 
   public func expire(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
     cancelledIdentifiersValue.append(identifier)
-    if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
-    {
+        if let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier }) {
       try await store.saveSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request,
           state: .expired,
           progress: existing.progress,
-          errorMessage: "background_transfer_expired",
+                    failure: .expired,
           updatedAt: updatedAt
         )
       )
@@ -114,8 +111,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     guard
       let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
     else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background transfer snapshot not found")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
     switch verification {
     case .accepted:
@@ -129,13 +125,13 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
           updatedAt: updatedAt
         )
       )
-    case .rejected(let code):
+        case .rejected(let failure):
       try await store.saveSnapshot(
         RadrootsBackgroundTransferSnapshot(
           request: existing.request,
           state: .failed,
           progress: existing.progress,
-          errorMessage: code,
+                    failure: failure,
           updatedAt: updatedAt
         )
       )
@@ -146,8 +142,7 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     guard
       let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
     else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background transfer snapshot not found")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
     let snapshot = try RadrootsBackgroundTransferSnapshot(
       request: existing.request,
@@ -158,19 +153,20 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     try await store.saveSnapshot(snapshot)
   }
 
-  public func fail(_ identifier: RadrootsBackgroundTransferIdentifier, message: String) async throws
-  {
+    public func fail(
+        _ identifier: RadrootsBackgroundTransferIdentifier,
+        failure: RadrootsBackgroundTransferFailure
+    ) async throws {
     guard
       let existing = try await store.loadSnapshots().first(where: { $0.identifier == identifier })
     else {
-      throw RadrootsBackgroundTransferError.transferFailure(
-        "background transfer snapshot not found")
+            throw RadrootsBackgroundTransferError.transferFailure
     }
     let snapshot = try RadrootsBackgroundTransferSnapshot(
       request: existing.request,
       state: .failed,
       progress: existing.progress,
-      errorMessage: message,
+            failure: failure,
       updatedAt: updatedAt
     )
     try await store.saveSnapshot(snapshot)

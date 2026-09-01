@@ -10,19 +10,15 @@ import Testing
   #expect(identifier.rawValue == "field-ios.transfer_1")
 
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer identifier must not be empty")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferIdentifier(" ")
   }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer identifier must use lowercase safe identifier characters"
-    )
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) { _ = try RadrootsBackgroundTransferIdentifier("/escape") }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer identifier cannot contain empty path components")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferIdentifier("field..transfer")
   }
@@ -51,8 +47,7 @@ import Testing
   #expect(authorized.headers["Authorization"] == longAuthorization)
 
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer remote URL must use public HTTPS")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "http://radroots.org/relay.json")), method: .get,
@@ -60,8 +55,7 @@ import Testing
     )
   }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer remote URL is unsafe")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/relay.json?token=secret")),
@@ -76,8 +70,7 @@ import Testing
   )
   #expect(simulatorRequest.networkPolicy == .simulatorLoopbackHTTP)
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background download transfers must use GET")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/relay.json")), method: .post,
@@ -85,8 +78,7 @@ import Testing
     )
   }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer header value cannot contain control characters")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/relay.json")), method: .get,
@@ -95,8 +87,7 @@ import Testing
     )
   }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer header name is unsafe")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/relay.json")), method: .get,
@@ -118,8 +109,7 @@ import Testing
   #expect(request.operation == .upload(source: source))
 
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background upload transfers must use POST or PUT")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/upload")), method: .get,
@@ -141,8 +131,7 @@ import Testing
 
   #expect(request.maximumTransferBytes == 1024)
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer byte limit is invalid")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/unbounded.bin")),
@@ -152,8 +141,7 @@ import Testing
     )
   }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background downloads require a scoped destination file")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferRequest(
       remoteURL: #require(URL(string: "https://radroots.org/blob.bin")),
@@ -169,25 +157,22 @@ import Testing
   let request = try testDownloadRequest(identifier: "field.transfer.snapshot")
   let progress = try RadrootsBackgroundTransferProgress(bytesTransferred: 5, totalBytesExpected: 10)
   let snapshot = try RadrootsBackgroundTransferSnapshot(
-    request: request, state: .running, progress: progress, errorMessage: " running ",
+        request: request, state: .running, progress: progress, failure: .platformFailure,
     updatedAt: Date(timeIntervalSince1970: 1)
   )
 
   #expect(snapshot.identifier == request.identifier)
   #expect(snapshot.state == .running)
   #expect(snapshot.progress == progress)
-  #expect(snapshot.errorMessage == "running")
+    #expect(snapshot.failure == .platformFailure)
   #expect(snapshot.response == nil)
   #expect(!snapshot.possibleRemoteOrphan)
 
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer expected byte count cannot be less than transferred bytes"
-    )
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) { _ = try RadrootsBackgroundTransferProgress(bytesTransferred: 10, totalBytesExpected: 5) }
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer updated date must be finite")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try RadrootsBackgroundTransferSnapshot(
       request: request, updatedAt: Date(timeIntervalSinceReferenceDate: .infinity))
@@ -206,7 +191,13 @@ import Testing
     headers: ["Authorization": "Nostr secret-token"],
     metadata: ["purpose": "blossom_upload", "sha256": String(repeating: "a", count: 64)]
   )
-  try await store.saveSnapshot(RadrootsBackgroundTransferSnapshot(request: request))
+    try await store.saveSnapshot(
+        RadrootsBackgroundTransferSnapshot(
+            request: request,
+            state: .failed,
+            failure: .verificationRejected
+        )
+    )
 
   let persistedURL = roots.dataRoot.appendingPathComponent("background_transfers/transfers.json")
   let persisted = try String(contentsOf: persistedURL, encoding: .utf8)
@@ -220,15 +211,19 @@ import Testing
   #expect(!persisted.contains("blossom_upload"))
   #expect(!persisted.contains(String(repeating: "a", count: 64)))
   #expect(persisted.contains("\"schemaVersion\":1"))
+    #expect(persisted.contains("background_transfer_verification_rejected"))
   let recovered = try #require(try await store.loadSnapshots().first)
   #expect(recovered.request.headers.isEmpty)
   #expect(recovered.request.metadata.isEmpty)
+    #expect(recovered.failure == .verificationRejected)
 
-  let malformed = persisted.replacingOccurrences(of: "field.transfer.redacted", with: "../unsafe")
+    let malformed = persisted.replacingOccurrences(
+        of: "background_transfer_verification_rejected",
+        with: "https://secret.example.invalid/token"
+    )
   try Data(malformed.utf8).write(to: persistedURL, options: .atomic)
   await #expect(
-    throws: RadrootsBackgroundTransferError.persistenceFailure(
-      "background transfer persistence could not be read")
+        throws: RadrootsBackgroundTransferError.persistenceFailure
   ) {
     _ = try await store.loadSnapshots()
   }
@@ -277,8 +272,7 @@ import Testing
     roots: roots, protectedData: RadrootsProtectedDataProvider { .locked })
 
   await #expect(
-    throws: RadrootsBackgroundTransferError.persistenceFailure(
-      "background transfer protected data is unavailable")
+        throws: RadrootsBackgroundTransferError.persistenceFailure
   ) {
     _ = try await store.loadSnapshots()
   }
@@ -310,8 +304,7 @@ import Testing
   let symlink = roots.dataRoot.appendingPathComponent("escape.bin")
   try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: outside)
   #expect(
-    throws: RadrootsBackgroundTransferError.invalidRequest(
-      "background transfer local file resolved outside its root")
+        throws: RadrootsBackgroundTransferError.invalidRequest
   ) {
     _ = try resolver.resolve(.file(RadrootsFileReference(scope: .data, relativePath: "escape.bin")))
   }
@@ -321,13 +314,12 @@ import Testing
       maximumBytes: 64)
   }
 
-  #expect(throws: RadrootsAppleFileError.invalidRequest("file relative path must not be absolute"))
-  {
+    #expect(throws: RadrootsAppleFileError.invalidRequest) {
     _ = try resolver.resolve(
       .file(RadrootsFileReference(scope: .data, relativePath: "/tmp/escape")))
   }
   #expect(
-    throws: RadrootsAppleFileError.invalidRequest("staged blob id contains invalid characters")
+        throws: RadrootsAppleFileError.invalidRequest
   ) {
     _ = try resolver.resolve(
       .stagedBlob(RadrootsStagedBlobReference(blobID: "../escape", sizeBytes: 1)))
@@ -405,27 +397,26 @@ import Testing
 }
 
 @Test func unavailableBackgroundTransferThrowsTypedErrors() async throws {
-  let transfer = RadrootsUnavailableBackgroundTransfer(
-    reason: "missing background transfer support")
+    let transfer = RadrootsUnavailableBackgroundTransfer()
   let request = try testDownloadRequest(identifier: "field.transfer.unavailable")
 
   await #expect(
-    throws: RadrootsBackgroundTransferError.unavailable("missing background transfer support")
+        throws: RadrootsBackgroundTransferError.unavailable
   ) {
     _ = try await transfer.enqueue(request)
   }
   await #expect(
-    throws: RadrootsBackgroundTransferError.unavailable("missing background transfer support")
+        throws: RadrootsBackgroundTransferError.unavailable
   ) {
     try await transfer.cancel(request.identifier)
   }
   await #expect(
-    throws: RadrootsBackgroundTransferError.unavailable("missing background transfer support")
+        throws: RadrootsBackgroundTransferError.unavailable
   ) {
     _ = try await transfer.snapshot(for: request.identifier)
   }
   await #expect(
-    throws: RadrootsBackgroundTransferError.unavailable("missing background transfer support")
+        throws: RadrootsBackgroundTransferError.unavailable
   ) {
     _ = try await transfer.snapshots()
   }
@@ -447,8 +438,7 @@ private func testBackgroundTransferRoots() throws -> RadrootsAppleFileRoots {
   )
   try FileManager.default.createDirectory(at: unresolvedRoot, withIntermediateDirectories: false)
   guard let resolvedPointer = unresolvedRoot.path.withCString({ Darwin.realpath($0, nil) }) else {
-    throw RadrootsBackgroundTransferError.persistenceFailure(
-      "background transfer test root is unavailable")
+        throw RadrootsBackgroundTransferError.persistenceFailure
   }
   defer { Darwin.free(resolvedPointer) }
   let root = URL(fileURLWithPath: String(cString: resolvedPointer), isDirectory: true)

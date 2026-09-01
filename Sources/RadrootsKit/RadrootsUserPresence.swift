@@ -55,7 +55,7 @@ public struct RadrootsUserPresenceRequest: Sendable, Equatable, Hashable {
     ) throws {
         let normalizedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedReason.isEmpty else {
-            throw RadrootsUserPresenceError.invalidRequest("user presence reason cannot be empty")
+            throw RadrootsUserPresenceError.invalidRequest
         }
         self.policy = policy
         self.reason = normalizedReason
@@ -73,32 +73,25 @@ public struct RadrootsUserPresenceResult: Sendable, Equatable, Hashable {
 }
 
 public enum RadrootsUserPresenceError: Error, Equatable, Sendable {
-    case invalidRequest(String)
-    case userCancelled(String)
-    case permissionDenied(String)
-    case unavailable(String)
-    case timeout(String)
-    case transientFailure(String)
-    case permanentFailure(String)
+    case invalidRequest
+    case userCancelled
+    case permissionDenied
+    case unavailable
+    case timeout
+    case transientFailure
+    case permanentFailure
 }
 
 extension RadrootsUserPresenceError: LocalizedError {
     public var errorDescription: String? {
         switch self {
-        case let .invalidRequest(message):
-            message
-        case let .userCancelled(message):
-            message
-        case let .permissionDenied(message):
-            message
-        case let .unavailable(message):
-            message
-        case let .timeout(message):
-            message
-        case let .transientFailure(message):
-            message
-        case let .permanentFailure(message):
-            message
+        case .invalidRequest: "The user-presence request is invalid."
+        case .userCancelled: "User-presence verification was cancelled."
+        case .permissionDenied: "User-presence verification was denied."
+        case .unavailable: "User-presence verification is unavailable."
+        case .timeout: "User-presence verification timed out."
+        case .transientFailure: "User-presence verification could not be completed temporarily."
+        case .permanentFailure: "User-presence verification could not be completed."
         }
     }
 }
