@@ -209,7 +209,11 @@ public actor RadrootsAppleMediaPreparer {
             return try RadrootsBackgroundTransferRequest(
                 identifier: identifier, remoteURL: remoteURL, method: .put,
                 operation: .upload(source: .stagedBlob(preparedImage.file)),
-                headers: ["Authorization": authorization, "Content-Type": "image/png"],
+                headers: [
+                    "Authorization": authorization, "Content-Type": "image/png",
+                    "X-SHA-256": preparedImage.sha256,
+                    "Accept": "application/json", "Accept-Encoding": "identity",
+                ],
                 metadata: ["purpose": "blossom_upload", "sha256": preparedImage.sha256],
                 networkPolicy: networkPolicy,
                 responsePolicy: .boundedJSON(), expectedSourceSHA256: preparedImage.sha256

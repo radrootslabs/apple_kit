@@ -27,13 +27,13 @@ if git grep -I -n -E \
   exit 1
 fi
 
-swift build
-bin_path="$(swift build --show-bin-path)"
+bash tools/swift-package.sh build
+bin_path="$(bash tools/swift-package.sh build --show-bin-path)"
 arch="$(swift -print-target-info | sed -n 's/.*"arch": "\([^"]*\)".*/\1/p')"
 test -n "$arch"
 sdk_path="$(xcrun --show-sdk-path --sdk macosx)"
 module_map="$bin_path/libsecp256k1.build/module.modulemap"
-dependency_include="$repo_root/.build/checkouts/swift-secp256k1/Sources/libsecp256k1/include"
+dependency_include="${SWIFTPM_SCRATCH:-$repo_root/.build}/checkouts/swift-secp256k1/Sources/libsecp256k1/include"
 test -f "$module_map"
 test -d "$dependency_include"
 

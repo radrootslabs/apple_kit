@@ -5,8 +5,12 @@ Swift package for native Rad Roots Apple-platform application services.
 
 ## Verification
 
-Run `tools/verify-boundaries.sh`, `tools/verify-supply-chain.sh`, `swift build`,
-and `swift test` from a standalone clone. The boundary command byte-compares
+Run `tools/verify-boundaries.sh`, `tools/verify-supply-chain.sh`,
+`bash tools/swift-package.sh build`, and `bash tools/swift-package.sh test`
+from a standalone clone. The package launcher runs SwiftPM with the exact
+resolved dependency and uses `SWIFTPM_SCRATCH` and `SWIFTPM_CACHE` when supplied.
+An ordinary clone uses its local `.build` scratch directory.
+The boundary command byte-compares
 the normalized public symbol inventory against its reviewed API baseline and
 rejects forbidden repository roots or credential material. In an
 extbuild-enabled checkout, first run
