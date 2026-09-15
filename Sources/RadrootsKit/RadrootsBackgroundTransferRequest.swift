@@ -46,7 +46,7 @@ public struct RadrootsBackgroundTransferRequest: Sendable, Equatable, Hashable, 
 
     public var debugDescription: String {
         "RadrootsBackgroundTransferRequest(identifier: \(identifier.rawValue), method: \(method.rawValue), "
-            + "operation: \(operation.redactedLabel), headers: <redacted>, metadataKeys: \(metadata.keys.sorted()), "
+            + "operation: \(operation.redactedLabel), headers: <redacted>, metadata: <redacted>, "
             + "maximumTransferBytes: \(maximumTransferBytes), responseBodyLimit: \(responsePolicy.maximumBodyBytes))"
     }
 
@@ -99,7 +99,8 @@ public struct RadrootsBackgroundTransferRequest: Sendable, Equatable, Hashable, 
         try values.encode(remoteURL, forKey: .remoteURL)
         try values.encode(method, forKey: .method)
         try values.encode(operation, forKey: .operation)
-        try values.encode(metadata, forKey: .metadata)
+        // Headers and host metadata are transient, including direct Codable exports.
+        try values.encode([String: String](), forKey: .metadata)
         try values.encode(networkPolicy, forKey: .networkPolicy)
         try values.encode(responsePolicy, forKey: .responsePolicy)
         try values.encodeIfPresent(expectedSourceSHA256, forKey: .expectedSourceSHA256)

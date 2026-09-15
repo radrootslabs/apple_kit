@@ -4,15 +4,13 @@ import Foundation
     final class RadrootsTransferSessionDelegate: NSObject,
         URLSessionDownloadDelegate, URLSessionDataDelegate,
         URLSessionTaskDelegate, @unchecked Sendable {
-        private static let absoluteMaximumResponseBodyBytes = 65536
         private let coordinator: RadrootsTransferCoordinator
         private let downloadStagingRoot: URL
         private let fileManager: FileManager
         private let lock = NSLock()
         private var stagedDownloadResultsByTaskIdentifier: [Int: RadrootsStagedBackgroundDownloadResult]
-        private var responseBodyLimitsByTaskIdentifier: [Int: Int]
-        private var responseBodiesByTaskIdentifier: [Int: Data]
-        private var exceededResponseBodyTaskIdentifiers: Set<Int>
+        let callbacks = RadrootsTransferCallbackQueue()
+        private let responses = RadrootsTransferResponseCollector()
 
         init(
             coordinator: RadrootsTransferCoordinator, downloadStagingRoot: URL,
@@ -22,9 +20,6 @@ import Foundation
             self.downloadStagingRoot = downloadStagingRoot
             self.fileManager = fileManager
             stagedDownloadResultsByTaskIdentifier = [:]
-            responseBodyLimitsByTaskIdentifier = [:]
-            responseBodiesByTaskIdentifier = [:]
-            exceededResponseBodyTaskIdentifiers = []
         }
 
         func urlSession(
@@ -91,7 +86,8 @@ import Foundation
         }
 
         func urlSession(_: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-            let shouldCancel = appendResponseBody(data, task: dataTask)
+            let shouldCancel = responses.append(data, taskIdentifier: dataTask.taskIdentifier,
+                                                fallbackLimit: responseLimit(dataTask))
             if shouldCancel {
                 dataTask.cancel()
             }
@@ -101,9 +97,14 @@ import Foundation
             _: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
             completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
         ) {
-            completionHandler(RadrootsNativeDestinationPolicy.responseMatches(
+            let accepted = RadrootsNativeDestinationPolicy.responseMatches(
                 response.url, original: dataTask.originalRequest, current: dataTask.currentRequest
-            ) ? .allow : .cancel)
+            ) && responses.begin(
+                response,
+                taskIdentifier: dataTask.taskIdentifier,
+                fallbackLimit: responseLimit(dataTask)
+            )
+            completionHandler(accepted ? .allow : .cancel)
         }
 
         func urlSession(
@@ -120,7 +121,8 @@ import Foundation
             Task {
                 await coordinator.updateProgress(
                     identifier: identifier, bytesTransferred: totalBytesSent,
-                    totalBytesExpected: Self.expectedByteCount(totalBytesExpectedToSend)
+                    totalBytesExpected: Self.expectedByteCount(totalBytesExpectedToSend),
+                    executionID: RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?.executionID
                 )
             }
         }
@@ -138,7 +140,7 @@ import Foundation
                 }
                 return
             }
-            Task {
+            callbacks.enqueue(receipt: identifier) { [coordinator] in
                 await coordinator.complete(
                     identifier: identifier,
                     completion: RadrootsTransferCompletion(platformError: error,
@@ -155,7 +157,7 @@ import Foundation
         }
 
         func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-            Task {
+            callbacks.enqueue { [coordinator] in
                 await coordinator.finishBackgroundEvents(identifier: session.configuration.identifier)
             }
         }
@@ -185,60 +187,22 @@ import Foundation
         }
 
         func registerResponseBodyLimit(_ limit: Int, taskIdentifier: Int) {
-            lock.lock()
-            defer { lock.unlock() }
-            responseBodyLimitsByTaskIdentifier[taskIdentifier] = min(
-                max(limit, 0), Self.absoluteMaximumResponseBodyBytes
-            )
+            responses.register(limit, taskIdentifier: taskIdentifier)
         }
 
-        private func appendResponseBody(_ data: Data, task: URLSessionDataTask) -> Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            let taskIdentifier = task.taskIdentifier
-            guard !exceededResponseBodyTaskIdentifiers.contains(taskIdentifier) else { return false }
-            let limit =
-                responseBodyLimitsByTaskIdentifier[taskIdentifier]
-                    ?? RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?
-                    .maximumResponseBodyBytes
-                    ?? Self.absoluteMaximumResponseBodyBytes
-            guard limit > 0 else { return false }
-            let currentCount = responseBodiesByTaskIdentifier[taskIdentifier]?.count ?? 0
-            guard data.count <= limit - currentCount else {
-                responseBodiesByTaskIdentifier.removeValue(forKey: taskIdentifier)
-                exceededResponseBodyTaskIdentifiers.insert(taskIdentifier)
-                return true
-            }
-            responseBodiesByTaskIdentifier[taskIdentifier, default: Data()].append(data)
-            return false
+        private func responseLimit(_ task: URLSessionTask) -> Int {
+            RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?
+                .maximumResponseBodyBytes ?? 65536
         }
 
         private func takeHTTPResult(for task: URLSessionTask) -> RadrootsBackgroundHTTPResult {
-            lock.lock()
-            let body = responseBodiesByTaskIdentifier.removeValue(forKey: task.taskIdentifier)
-            responseBodyLimitsByTaskIdentifier.removeValue(forKey: task.taskIdentifier)
-            let exceeded = exceededResponseBodyTaskIdentifiers.remove(task.taskIdentifier) != nil
-            lock.unlock()
-
-            guard let response = task.response as? HTTPURLResponse else {
-                return RadrootsBackgroundHTTPResult(
-                    statusCode: nil, mediaType: nil, body: body, bodyExceeded: exceeded
-                )
-            }
-            let rawMediaType = response.value(forHTTPHeaderField: "Content-Type")
-            let mediaType = rawMediaType.flatMap {
-                try? RadrootsBackgroundTransferValidation.normalizedMediaType($0)
-            }
-            let contentEncoding = response.value(forHTTPHeaderField: "Content-Encoding")?
-                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return RadrootsBackgroundHTTPResult(
-                statusCode: response.statusCode, mediaType: mediaType, body: body,
-                contentEncoding: contentEncoding, bodyExceeded: exceeded,
-                mediaTypeWasMalformed: rawMediaType != nil && mediaType == nil,
-                destinationMismatch: !RadrootsNativeDestinationPolicy.responseMatches(
-                    response.url, original: task.originalRequest, current: task.currentRequest
-                )
-            )
+            responses.take(taskIdentifier: task.taskIdentifier, response: task.response as? HTTPURLResponse,
+                           destinationMismatch: task.response != nil && !RadrootsNativeDestinationPolicy
+                               .responseMatches(
+                                   task.response?.url,
+                                   original: task.originalRequest,
+                                   current: task.currentRequest
+                               ))
         }
 
         private func transferIdentifier(from task: URLSessionTask)

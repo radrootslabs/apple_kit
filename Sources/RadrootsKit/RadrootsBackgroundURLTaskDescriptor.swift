@@ -13,11 +13,13 @@ struct RadrootsBackgroundHTTPResult: Sendable, Equatable {
     let bodyExceeded: Bool
     let mediaTypeWasMalformed: Bool
     let destinationMismatch: Bool
+    let headerFailure: RadrootsBackgroundTransferFailure?
 
     init(
         statusCode: Int?, mediaType: String?, body: Data?, contentEncoding: String? = nil,
         bodyExceeded: Bool,
-        mediaTypeWasMalformed: Bool = false, destinationMismatch: Bool = false
+        mediaTypeWasMalformed: Bool = false, destinationMismatch: Bool = false,
+        headerFailure: RadrootsBackgroundTransferFailure? = nil
     ) {
         self.statusCode = statusCode
         self.mediaType = mediaType
@@ -26,6 +28,7 @@ struct RadrootsBackgroundHTTPResult: Sendable, Equatable {
         self.bodyExceeded = bodyExceeded
         self.mediaTypeWasMalformed = mediaTypeWasMalformed
         self.destinationMismatch = destinationMismatch
+        self.headerFailure = headerFailure
     }
 }
 

@@ -118,7 +118,7 @@ import Foundation
             let identifiers = tasks.compactMap { task -> RadrootsBackgroundTransferIdentifier? in
                 RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?.identifier
             }
-            return Set(identifiers)
+            return Set(identifiers).union(sessionDelegate?.callbacks.pendingIdentifiers ?? [])
         }
 
         func handleBackgroundEvents(

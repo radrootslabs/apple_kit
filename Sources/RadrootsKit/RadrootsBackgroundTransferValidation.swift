@@ -166,6 +166,11 @@ public enum RadrootsBackgroundTransferValidation {
         else {
             throw RadrootsBackgroundTransferError.invalidRequest
         }
+        if mediaType == "application/json" {
+            guard (try? JSONSerialization.jsonObject(with: body)) is [String: Any] else {
+                throw RadrootsBackgroundTransferError.invalidRequest
+            }
+        }
     }
 
     private static func validateSafeText(_ value: String, field _: String, maximumLength: Int) throws {

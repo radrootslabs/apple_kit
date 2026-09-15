@@ -50,11 +50,17 @@ public struct RadrootsBackgroundTransferResponsePolicy: Sendable, Equatable, Has
     }
 }
 
-public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable, Codable {
+public struct RadrootsBackgroundTransferResponse: Sendable, Equatable, Hashable, Codable,
+    CustomDebugStringConvertible {
     public let statusCode: Int
     public let mediaType: String?
     public let contentEncoding: String?
     public let body: Data?
+
+    public var debugDescription: String {
+        "RadrootsBackgroundTransferResponse(statusCode: \(statusCode), "
+            + "bodyBytes: \(body?.count ?? 0), content: <redacted>)"
+    }
 
     public init(
         statusCode: Int, mediaType: String?, contentEncoding: String? = nil, body: Data?

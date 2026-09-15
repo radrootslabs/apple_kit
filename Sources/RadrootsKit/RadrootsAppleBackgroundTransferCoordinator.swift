@@ -8,6 +8,12 @@ actor RadrootsTransferCoordinator {
     private let fileManager: FileManager
     private var completionHandlers: [@Sendable () -> Void]
     private var unclaimedFinishedEventCount: Int
+    private var pendingReceiptCount = 0
+    private var deferredFinishedEvents = 0
+
+    var hasPendingReceipts: Bool {
+        pendingReceiptCount > 0
+    }
 
     init(
         sessionIdentifier: String, store: any RadrootsBackgroundTransferStore,
@@ -49,7 +55,9 @@ actor RadrootsTransferCoordinator {
         identifier: RadrootsBackgroundTransferIdentifier, completion: RadrootsTransferCompletion,
         executionID: UUID? = nil
     ) async {
-        guard let existing = try? await snapshot(for: identifier), existing.executionID == executionID,
+        pendingReceiptCount += 1
+        defer { receiptFinished() }
+        guard let existing = await recoverableSnapshot(for: identifier), existing.executionID == executionID,
               [.queued, .running, .interrupted].contains(existing.state)
         else { return }
         if let failure = Self.completionFailure(request: existing.request, completion: completion) {
@@ -87,6 +95,12 @@ actor RadrootsTransferCoordinator {
         if completion.httpResult.destinationMismatch {
             return .responseInvalid
         }
+        if let failure = completion.httpResult.headerFailure {
+            return failure
+        }
+        if let encoding = completion.httpResult.contentEncoding, encoding != "identity" {
+            return .responseContentEncoding
+        }
         if UInt64(max(completion.bytesTransferred, 0)) > request.maximumTransferBytes
             || completion.totalBytesExpected.map({ UInt64(max($0, 0)) > request.maximumTransferBytes }) == true {
             return .transferTooLarge
@@ -122,15 +136,15 @@ actor RadrootsTransferCoordinator {
             completionHandler()
             return
         }
-        guard completionHandlers.count < 8 else {
-            completionHandler()
-            return
-        }
         completionHandlers.append(completionHandler)
     }
 
     func finishBackgroundEvents(identifier: String?) {
         guard identifier == nil || identifier == sessionIdentifier else { return }
+        guard pendingReceiptCount == 0 else {
+            deferredFinishedEvents = min(deferredFinishedEvents + 1, 8)
+            return
+        }
         guard !completionHandlers.isEmpty else {
             unclaimedFinishedEventCount = min(unclaimedFinishedEventCount + 1, 8)
             return
@@ -155,12 +169,16 @@ extension RadrootsTransferCoordinator {
                 fallback: existing.progress
             )
             ?? existing.progress
-        _ = try? await store.compareExchangeSnapshot(expected: existing, desired:
-            try RadrootsBackgroundTransferSnapshot(
+        do {
+            let desired = try RadrootsBackgroundTransferSnapshot(
                 request: existing.request, state: .awaitingVerification, progress: progress,
                 response: response, updatedAt: now(), executionID: existing.executionID,
                 uploadLease: existing.uploadLease
-            ))
+            )
+            await persistTerminal(desired)
+        } catch {
+            await fail(existing: existing, code: .responseInvalid, possibleRemoteOrphan: true)
+        }
     }
 
     private func completeDownload(
@@ -190,33 +208,36 @@ extension RadrootsTransferCoordinator {
                 byteSize: UInt64(fileSize),
                 mediaType: mediaType
             )
-            try fileManager.createDirectory(
-                at: destinationURL.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try Self.moveReplacingItem(from: stagedFileURL, to: destinationURL, fileManager: fileManager)
-            #if os(iOS)
-                try fileManager.setAttributes(
-                    [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                    ofItemAtPath: destinationURL.path
-                )
-            #endif
+            try installDownload(stagedFileURL, at: destinationURL)
             let progress =
                 Self.progress(
                     bytesTransferred: max(bytesTransferred, fileSize), totalBytesExpected: totalBytesExpected,
                     fallback: existing.progress
                 )
                 ?? existing.progress
-            _ = try await store.compareExchangeSnapshot(expected: existing, desired:
-                RadrootsBackgroundTransferSnapshot(
-                    request: existing.request, state: .awaitingVerification, progress: progress,
-                    response: response,
-                    downloadedArtifact: downloadedArtifact, updatedAt: now(), executionID: existing.executionID,
-                    uploadLease: existing.uploadLease
-                ))
+            let desired = try RadrootsBackgroundTransferSnapshot(
+                request: existing.request, state: .awaitingVerification, progress: progress,
+                response: response,
+                downloadedArtifact: downloadedArtifact, updatedAt: now(), executionID: existing.executionID,
+                uploadLease: existing.uploadLease
+            )
+            await persistTerminal(desired)
         } catch {
             Self.removeStagedDownload(.file(stagedFileURL), fileManager: fileManager)
             await fail(existing: existing, code: .destinationFailure)
         }
+    }
+
+    private func installDownload(_ source: URL, at destination: URL) throws {
+        try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.moveReplacingItem(from: source, to: destination, fileManager: fileManager)
+        #if os(iOS)
+            try fileManager.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: destination.path
+            )
+        #endif
+        try RadrootsAtomicFile.synchronizeExisting(at: destination)
     }
 
     private func fail(
@@ -224,17 +245,69 @@ extension RadrootsTransferCoordinator {
         code: RadrootsBackgroundTransferFailure,
         possibleRemoteOrphan: Bool = false
     ) async {
-        _ = try? await store.compareExchangeSnapshot(expected: existing, desired:
-            try RadrootsBackgroundTransferSnapshot(
+        while true {
+            let observed = now()
+            let timestamp = observed.timeIntervalSinceReferenceDate.isFinite ? observed : existing.updatedAt
+            let desired = try? RadrootsBackgroundTransferSnapshot(
                 request: existing.request, state: .failed, progress: existing.progress, failure: code,
-                possibleRemoteOrphan: possibleRemoteOrphan, updatedAt: now(), executionID: existing.executionID,
+                possibleRemoteOrphan: possibleRemoteOrphan, updatedAt: timestamp, executionID: existing.executionID,
                 uploadLease: existing.uploadLease
-            ))
+            )
+            if let desired {
+                await persistTerminal(desired); return
+            }
+            await Self.persistenceRetryDelay()
+        }
     }
 
     private func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws
         -> RadrootsBackgroundTransferSnapshot? {
         try await store.loadSnapshots().first { $0.identifier == identifier }
+    }
+
+    private func recoverableSnapshot(for identifier: RadrootsBackgroundTransferIdentifier) async
+        -> RadrootsBackgroundTransferSnapshot? {
+        while true {
+            do {
+                return try await snapshot(for: identifier)
+            } catch {
+                await Self.persistenceRetryDelay()
+            }
+        }
+    }
+
+    /// Progress and reconciliation may replace a snapshot during an await. Retry
+    /// against the current exact value without changing the receipt's attempt.
+    /// Store failure retains the receipt and blocks finished-event acknowledgement.
+    private func persistTerminal(_ desired: RadrootsBackgroundTransferSnapshot) async {
+        while true {
+            do {
+                guard let current = try await snapshot(for: desired.identifier),
+                      current.executionID == desired.executionID, current.request == desired.request,
+                      [.queued, .running, .interrupted].contains(current.state)
+                else { return }
+                if try await store.compareExchangeSnapshot(expected: current, desired: desired) {
+                    return
+                }
+            } catch { /* Retain receipt ownership until storage becomes available. */ }
+            await Self.persistenceRetryDelay()
+        }
+    }
+
+    private static func persistenceRetryDelay() async {
+        // The OS acknowledgement barrier must survive caller cancellation. A
+        // separately owned delay avoids a cancelled task spinning on sleep.
+        await Task.detached { try? await Task.sleep(for: .milliseconds(100)) }.value
+    }
+
+    private func receiptFinished() {
+        pendingReceiptCount -= 1
+        guard pendingReceiptCount == 0, deferredFinishedEvents > 0 else { return }
+        let events = deferredFinishedEvents
+        deferredFinishedEvents = 0
+        for _ in 0 ..< events {
+            finishBackgroundEvents(identifier: sessionIdentifier)
+        }
     }
 
     private static func progress(

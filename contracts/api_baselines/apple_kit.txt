@@ -576,6 +576,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferProgressV	4:s:Se	15:Swift.Decodable
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	13:s:s8SendableP	14:Swift.Sendable
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	22:s:s16SendableMetatypeP	22:Swift.SendableMetatype
+12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	34:s:s28CustomDebugStringConvertibleP	34:Swift.CustomDebugStringConvertible
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	4:s:SE	15:Swift.Encodable
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	4:s:SH	14:Swift.Hashable
 12:relationship	11:RadrootsKit	10:conformsTo	46:s:11RadrootsKit0A26BackgroundTransferResponseV	4:s:SQ	15:Swift.Equatable
@@ -1349,6 +1350,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A25BackgroundTransferFailureO15responseMissingyA2CmF	45:s:11RadrootsKit0A25BackgroundTransferFailureO	0:
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A25BackgroundTransferRequestV6methodAA0acD6MethodOvp	45:s:11RadrootsKit0A25BackgroundTransferRequestV	0:
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A26AppleMediaPreparationErrorO14invalidRequestyA2CmF	46:s:11RadrootsKit0A26AppleMediaPreparationErrorO	0:
+12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A26BackgroundTransferResponseV16debugDescriptionSSvp	46:s:11RadrootsKit0A26BackgroundTransferResponseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A26BackgroundTransferSnapshotV16debugDescriptionSSvp	46:s:11RadrootsKit0A26BackgroundTransferSnapshotV	0:
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A28BackgroundDownloadedArtifactV8byteSizes6UInt64Vvp	48:s:11RadrootsKit0A28BackgroundDownloadedArtifactV	0:
 12:relationship	11:RadrootsKit	8:memberOf	68:s:11RadrootsKit0A29ExternalActionDestinationKindO11appSettingsyA2CmF	49:s:11RadrootsKit0A29ExternalActionDestinationKindO	0:
@@ -2520,6 +2522,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A22PreparedExportDocumentV7fileURL10Foundation0G0Vvp	7:fileURL	16:let fileURL: URL
 6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A24DocumentInterchangeErrorO16errorDescriptionSSSgvp	16:errorDescription	37:var errorDescription: String? { get }
 6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A25BackgroundTransferRequestV6methodAA0acD6MethodOvp	6:method	44:let method: RadrootsBackgroundTransferMethod
+6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A26BackgroundTransferResponseV16debugDescriptionSSvp	16:debugDescription	36:var debugDescription: String { get }
 6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A26BackgroundTransferSnapshotV16debugDescriptionSSvp	16:debugDescription	36:var debugDescription: String { get }
 6:symbol	11:RadrootsKit	14:swift.property	68:s:11RadrootsKit0A28BackgroundDownloadedArtifactV8byteSizes6UInt64Vvp	8:byteSize	20:let byteSize: UInt64
 6:symbol	11:RadrootsKit	14:swift.property	69:s:11RadrootsKit0A16IdentitySnapshotV8identityAA0aC12PublicRecordVSgvp	8:identity	43:let identity: RadrootsIdentityPublicRecord?

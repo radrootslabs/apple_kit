@@ -11,6 +11,7 @@
         private var connections: [NWConnection] = []
         private var received = 0
         private var location: String?
+        private var wireResponse: Data?
 
         init() throws {
             let parameters = NWParameters.tcp
@@ -24,6 +25,10 @@
 
         func redirect(to location: String) {
             lock.withLock { self.location = location }
+        }
+
+        func respond(with bytes: Data) {
+            lock.withLock { wireResponse = bytes }
         }
 
         func start() async throws -> UInt16 {
@@ -60,7 +65,8 @@
                 if self.hasBody(bytes) {
                     let destination = self.lock.withLock { self.received += 1; return self.location }
                     let status = destination.map { "307 Temporary Redirect\r\nLocation: \($0)" } ?? "200 OK"
-                    let response = Data("HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+                    let response = self.lock.withLock { self.wireResponse }
+                        ?? Data("HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
                     connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
                 } else if complete {
                     connection.cancel()

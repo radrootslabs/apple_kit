@@ -169,7 +169,7 @@ import Testing
     #expect(try await store.loadSnapshots().first?.state == .cancelled)
 }
 
-@Test func appleBackgroundTransferRecoversCompletionLostWhileProtectedDataIsLocked() async throws {
+@Test func appleBackgroundTransferRetainsReceiptWhileProtectedDataIsLocked() async throws {
     let roots = try appleTransferRoots()
     let protectedData = RadrootsProtectedDataProbe(state: .available)
     let store = RadrootsAppleBackgroundTransferStore(
@@ -185,24 +185,35 @@ import Testing
     )
 
     protectedData.state = .locked
-    await coordinator.complete(
-        identifier: request.identifier,
-        completion: RadrootsTransferCompletion(
-            platformError: nil,
-            stagedDownloadResult: nil,
-            httpResult: successfulHTTPResult(),
-            bytesTransferred: 10,
-            totalBytesExpected: 10
+    let pending = Task {
+        await coordinator.complete(
+            identifier: request.identifier,
+            completion: RadrootsTransferCompletion(platformError: nil, stagedDownloadResult: nil,
+                                                   httpResult: successfulHTTPResult(), bytesTransferred: 10,
+                                                   totalBytesExpected: 10)
         )
-    )
+    }
+    for _ in 0 ..< 100 {
+        if await coordinator.hasPendingReceipts {
+            break
+        }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(await coordinator.hasPendingReceipts)
+    let completion = RadrootsCompletionProbe()
+    await coordinator.handleBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer") {
+        completion.markCompleted()
+    }
+    await coordinator.finishBackgroundEvents(identifier: "org.radroots.field-ios.background.transfer")
+    #expect(!completion.completed)
     protectedData.state = .available
-
-    let transfer = RadrootsAppleBackgroundTransfer(
-        store: store, adapters: RadrootsAppleBackgroundTransferProbe().adapters()
-    )
-    let recovered = try #require(try await transfer.snapshots().first)
-    #expect(recovered.state == .interrupted)
-    #expect(recovered.possibleRemoteOrphan)
+    await pending.value
+    #expect(completion.completed)
+    let reopened = RadrootsAppleBackgroundTransferStore(roots: roots)
+    let recovered = try #require(try await reopened.loadSnapshots().first)
+    #expect(recovered.state == .awaitingVerification)
+    #expect(recovered.response?.statusCode == 200)
+    #expect(!recovered.possibleRemoteOrphan)
 }
 
 @Test func appleBackgroundTransferCoordinatorInvokesStoredCompletionHandlerAfterFinishedEvents()
