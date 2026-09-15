@@ -136,18 +136,16 @@ public actor RadrootsAppleMediaPreparer {
         try Task.checkCancellation()
         try requireProtectedData()
         try Task.checkCancellation()
-        let stagedURL = try roots.stagedBlobURL(for: staged)
-        try fileManager.createDirectory(at: roots.stagedBlobsRoot, withIntermediateDirectories: true)
-        if fileManager.fileExists(atPath: stagedURL.path) {
-            let existingSize = try Self.fileSize(at: stagedURL)
-            let existingDigest = try RadrootsAppleFileDigest.sha256(at: stagedURL)
-            if existingSize != outputSize || existingDigest != digest {
-                try fileManager.removeItem(at: stagedURL)
-                try fileManager.moveItem(at: temporaryURL, to: stagedURL)
-            }
-        } else {
-            try fileManager.moveItem(at: temporaryURL, to: stagedURL)
+        let relative = "media_preparation/" + temporaryURL.lastPathComponent
+        let bytes = try RadrootsGovernedFileReader.read(
+            root: roots.temporaryRoot, relativePath: relative, maximumBytes: request.maximumOutputBytes
+        )
+        guard bytes.count == outputSize, RadrootsAppleFileDigest.sha256(bytes) == digest else {
+            throw RadrootsAppleMediaPreparationError.preparationFailure
         }
+        try Task.checkCancellation()
+        try RadrootsAppleFileAccess(roots: roots, fileManager: fileManager).installStagedBlob(bytes, reference: staged)
+        let stagedURL = try roots.stagedBlobURL(for: staged)
         #if os(iOS)
             try fileManager.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],

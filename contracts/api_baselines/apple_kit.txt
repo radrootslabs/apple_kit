@@ -139,6 +139,10 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15ScannedDocumentV	22:s:s16SendableMetatypeP	22:Swift.SendableMetatype
 12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15ScannedDocumentV	4:s:SH	14:Swift.Hashable
 12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15ScannedDocumentV	4:s:SQ	15:Swift.Equatable
+12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15StagedBlobLeaseV	13:s:s8SendableP	14:Swift.Sendable
+12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15StagedBlobLeaseV	22:s:s16SendableMetatypeP	22:Swift.SendableMetatype
+12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15StagedBlobLeaseV	34:s:s28CustomDebugStringConvertibleP	34:Swift.CustomDebugStringConvertible
+12:relationship	11:RadrootsKit	10:conformsTo	35:s:11RadrootsKit0A15StagedBlobLeaseV	4:s:SQ	15:Swift.Equatable
 12:relationship	11:RadrootsKit	10:conformsTo	36:s:11RadrootsKit0A16AppleMediaPickerC	13:s:s8SendableP	14:Swift.Sendable
 12:relationship	11:RadrootsKit	10:conformsTo	36:s:11RadrootsKit0A16AppleMediaPickerC	22:s:s16SendableMetatypeP	22:Swift.SendableMetatype
 12:relationship	11:RadrootsKit	10:conformsTo	36:s:11RadrootsKit0A16AppleMediaPickerC	31:s:11RadrootsKit0A11MediaPickerP	0:
@@ -781,6 +785,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	103:s:11RadrootsKit0A29ApplePermissionStatusAdaptersV010permissionE03forAA0adE0OSo015UNAuthorizationE0V_tFZ	49:s:11RadrootsKit0A29ApplePermissionStatusAdaptersV	0:
 12:relationship	11:RadrootsKit	8:memberOf	104:s:11RadrootsKit0A23CaptureIntakeValidationO28normalizedScannerOutputKindsySayAA0a8DocumentgH4KindOGAGKFZ	43:s:11RadrootsKit0A23CaptureIntakeValidationO	0:
 12:relationship	11:RadrootsKit	8:memberOf	104:s:11RadrootsKit0A26BackgroundTransferProgressV16bytesTransferred18totalBytesExpectedACs5Int64V_AGSgtKcfc	46:s:11RadrootsKit0A26BackgroundTransferProgressV	0:
+12:relationship	11:RadrootsKit	8:memberOf	105:s:11RadrootsKit0A15AppleFileAccessC17installStagedBlob_9referencey10Foundation4DataV_AA0agH9ReferenceVtKF	35:s:11RadrootsKit0A15AppleFileAccessC	0:
 12:relationship	11:RadrootsKit	8:memberOf	105:s:11RadrootsKit0A26AppleIdentityMetadataStoreC9namespace12userDefaults9keyPrefixACSS_So06NSUserI0CSStKcfc	46:s:11RadrootsKit0A26AppleIdentityMetadataStoreC	0:
 12:relationship	11:RadrootsKit	8:memberOf	105:s:11RadrootsKit0A29UnavailableBackgroundTransferV8snapshot3forAA0adE8SnapshotVSgAA0adE10IdentifierV_tYaKF	49:s:11RadrootsKit0A29UnavailableBackgroundTransferV	0:
 12:relationship	11:RadrootsKit	8:memberOf	105:s:11RadrootsKit0A31AppleBackgroundTransferAdaptersV06activeE11IdentifiersShyAA0adE10IdentifierVGyYaYbKcvp	51:s:11RadrootsKit0A31AppleBackgroundTransferAdaptersV	0:
@@ -806,6 +811,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	114:s:11RadrootsKit0A35AppleBackgroundTransferFileResolverV4read_12maximumBytes10Foundation4DataVAA0ade5LocalF0O_SitKF	55:s:11RadrootsKit0A35AppleBackgroundTransferFileResolverV	0:
 12:relationship	11:RadrootsKit	8:memberOf	115:s:11RadrootsKit0A21ExportDocumentRequestV19normalizedSizeBytes6source09requestedgH0s6UInt64VSgAA0acD6SourceO_AItKFZ	41:s:11RadrootsKit0A21ExportDocumentRequestV	0:
 12:relationship	11:RadrootsKit	8:memberOf	117:s:11RadrootsKit0A15IdentityCustodyC014exportPortableC010passphraseAA0aC19PortabilityEnvelopeVAA0aC10PassphraseV_tYaKF	35:s:11RadrootsKit0A15IdentityCustodyC	0:
+12:relationship	11:RadrootsKit	8:memberOf	118:s:11RadrootsKit0A15AppleFileAccessC15leaseStagedBlob_14expectedSHA25610identifierAA0agH5LeaseVAA0agH9ReferenceV_S2StKF	35:s:11RadrootsKit0A15AppleFileAccessC	0:
 12:relationship	11:RadrootsKit	8:memberOf	118:s:11RadrootsKit0A15IdentityCustodyC06importC0_5label15replaceExistingAA0aC8SnapshotVAA0aC14SecretMaterialV_SSSgSbtYaKF	35:s:11RadrootsKit0A15IdentityCustodyC	0:
 12:relationship	11:RadrootsKit	8:memberOf	118:s:11RadrootsKit0A23AppleBackgroundTransferC015handleEventsForD10URLSession10identifier17completionHandlerySS_yyYbctYaF	43:s:11RadrootsKit0A23AppleBackgroundTransferC	0:
 12:relationship	11:RadrootsKit	8:memberOf	118:s:11RadrootsKit0A27DocumentPresentationAdapterO11contentType3for07UniformG11Identifiers6UTTypeVAA0aC11ContentKindO_tFZ	47:s:11RadrootsKit0A27DocumentPresentationAdapterO	0:
@@ -904,6 +910,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	46:s:11RadrootsKit0A14TelemetryLevelO5erroryA2CmF	34:s:11RadrootsKit0A14TelemetryLevelO	0:
 12:relationship	11:RadrootsKit	8:memberOf	46:s:11RadrootsKit0A14TelemetryLevelO5traceyA2CmF	34:s:11RadrootsKit0A14TelemetryLevelO	0:
 12:relationship	11:RadrootsKit	8:memberOf	46:s:11RadrootsKit0A15IdentityCustodyC04lockC0yyF	35:s:11RadrootsKit0A15IdentityCustodyC	0:
+12:relationship	11:RadrootsKit	8:memberOf	46:s:11RadrootsKit0A15StagedBlobLeaseV6sha256SSvp	35:s:11RadrootsKit0A15StagedBlobLeaseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	46:s:11RadrootsKit0A17ShareTransferItemV7PayloadO	37:s:11RadrootsKit0A17ShareTransferItemV	0:
 12:relationship	11:RadrootsKit	8:memberOf	47:s:11RadrootsKit0A13IdentityStateO7corruptyA2CmF	33:s:11RadrootsKit0A13IdentityStateO	0:
 12:relationship	11:RadrootsKit	8:memberOf	47:s:11RadrootsKit0A14PermissionKindO6camerayA2CmF	34:s:11RadrootsKit0A14PermissionKindO	0:
@@ -943,6 +950,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A13FileReferenceV12relativePathSSvp	33:s:11RadrootsKit0A13FileReferenceV	0:
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A14SecureStoreKeyV10normalizedACyKF	34:s:11RadrootsKit0A14SecureStoreKeyV	0:
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A14TelemetryFieldV4boolyACSS_SbtKFZ	34:s:11RadrootsKit0A14TelemetryFieldV	0:
+12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A15StagedBlobLeaseV10identifierSSvp	35:s:11RadrootsKit0A15StagedBlobLeaseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A17ShareTransferItemV7subjectSSSgvp	37:s:11RadrootsKit0A17ShareTransferItemV	0:
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A17UserPresenceErrorO7timeoutyA2CmF	37:s:11RadrootsKit0A17UserPresenceErrorO	0:
 12:relationship	11:RadrootsKit	8:memberOf	51:s:11RadrootsKit0A18LocationCoordinateV8latitudeSdvp	38:s:11RadrootsKit0A18LocationCoordinateV	0:
@@ -1040,6 +1048,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A15AppleFileAccessC16resetStagedBlobsyyKF	35:s:11RadrootsKit0A15AppleFileAccessC	0:
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A15LocationReadingV14altitudeMetersSdSgvp	35:s:11RadrootsKit0A15LocationReadingV	0:
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A15OpaqueSignatureV16debugDescriptionSSvp	35:s:11RadrootsKit0A15OpaqueSignatureV	0:
+12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A15StagedBlobLeaseV16debugDescriptionSSvp	35:s:11RadrootsKit0A15StagedBlobLeaseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A16ImportedDocumentV9sizeBytess6UInt64Vvp	36:s:11RadrootsKit0A16ImportedDocumentV	0:
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A16PermissionStatusO13notDeterminedyA2CmF	36:s:11RadrootsKit0A16PermissionStatusO	0:
 12:relationship	11:RadrootsKit	8:memberOf	57:s:11RadrootsKit0A17OpaqueSignPurposeO8rawValueACSgSS_tcfc	37:s:11RadrootsKit0A17OpaqueSignPurposeO	0:
@@ -1080,6 +1089,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	58:s:11RadrootsKit0A28AppleExternalActionsAdaptersV4liveACvpZ	48:s:11RadrootsKit0A28AppleExternalActionsAdaptersV	0:
 12:relationship	11:RadrootsKit	8:memberOf	58:s:11RadrootsKit0A28AppleLoggerTelemetryAdaptersV4liveACvpZ	48:s:11RadrootsKit0A28AppleLoggerTelemetryAdaptersV	0:
 12:relationship	11:RadrootsKit	8:memberOf	59:s:11RadrootsKit0A14TelemetryEventV6fieldsSayAA0aC5FieldVGvp	34:s:11RadrootsKit0A14TelemetryEventV	0:
+12:relationship	11:RadrootsKit	8:memberOf	59:s:11RadrootsKit0A15StagedBlobLeaseV4blobAA0acD9ReferenceVvp	35:s:11RadrootsKit0A15StagedBlobLeaseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	59:s:11RadrootsKit0A16ImportedDocumentV17suggestedFilenameSSvp	36:s:11RadrootsKit0A16ImportedDocumentV	0:
 12:relationship	11:RadrootsKit	8:memberOf	59:s:11RadrootsKit0A17OpaqueSignRequestV16debugDescriptionSSvp	37:s:11RadrootsKit0A17OpaqueSignRequestV	0:
 12:relationship	11:RadrootsKit	8:memberOf	59:s:11RadrootsKit0A17UserPresenceErrorO14invalidRequestyA2CmF	37:s:11RadrootsKit0A17UserPresenceErrorO	0:
@@ -1123,6 +1133,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	60:s:11RadrootsKit0A34UnavailableBackgroundTaskSchedulerVACycfc	54:s:11RadrootsKit0A34UnavailableBackgroundTaskSchedulerV	0:
 12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A15IdentityCustodyC7recoverAA0aC8SnapshotVyKF	35:s:11RadrootsKit0A15IdentityCustodyC	0:
 12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A15IdentityCustodyC8snapshotAA0aC8SnapshotVyF	35:s:11RadrootsKit0A15IdentityCustodyC	0:
+12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A15StagedBlobLeaseV7fileURL10Foundation0G0Vvp	35:s:11RadrootsKit0A15StagedBlobLeaseV	0:
 12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A17MediaImportResultV5itemsSayAA0aC5AssetVGvp	37:s:11RadrootsKit0A17MediaImportResultV	0:
 12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A17ShareTransferItemV7PayloadO4textyAESScAEmF	46:s:11RadrootsKit0A17ShareTransferItemV7PayloadO	0:
 12:relationship	11:RadrootsKit	8:memberOf	61:s:11RadrootsKit0A17UserPresenceErrorO16errorDescriptionSSSgvp	37:s:11RadrootsKit0A17UserPresenceErrorO	0:
@@ -1398,6 +1409,7 @@ radroots.apple-kit.public-api.v1
 12:relationship	11:RadrootsKit	8:memberOf	71:s:11RadrootsKit0A28AppleImagePreparationRequestV17maximumPixelCountSivp	48:s:11RadrootsKit0A28AppleImagePreparationRequestV	0:
 12:relationship	11:RadrootsKit	8:memberOf	71:s:11RadrootsKit0A28LocationServicesAvailabilityV08locationD7EnabledSbvp	48:s:11RadrootsKit0A28LocationServicesAvailabilityV	0:
 12:relationship	11:RadrootsKit	8:memberOf	71:s:11RadrootsKit0A31BackgroundTransferNetworkPolicyO8rawValueACSgSS_tcfc	51:s:11RadrootsKit0A31BackgroundTransferNetworkPolicyO	0:
+12:relationship	11:RadrootsKit	8:memberOf	72:s:11RadrootsKit0A15AppleFileAccessC22releaseStagedBlobLeaseyyAA0aghI0VKF	35:s:11RadrootsKit0A15AppleFileAccessC	0:
 12:relationship	11:RadrootsKit	8:memberOf	72:s:11RadrootsKit0A15ScannedDocumentV10outputKindAA0ad13ScannerOutputF0Ovp	35:s:11RadrootsKit0A15ScannedDocumentV	0:
 12:relationship	11:RadrootsKit	8:memberOf	72:s:11RadrootsKit0A20AppleExternalActionsC4openyyAA0aD13ActionRequestVYaKF	40:s:11RadrootsKit0A20AppleExternalActionsC	0:
 12:relationship	11:RadrootsKit	8:memberOf	72:s:11RadrootsKit0A20AppleExternalActionsC8adaptersAcA0acdE8AdaptersV_tcfc	40:s:11RadrootsKit0A20AppleExternalActionsC	0:
@@ -2042,6 +2054,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	12:swift.method	102:s:11RadrootsKit0A34DocumentExportPresentationModifierV4body7contentQr7SwiftUI05_ViewF8_ContentVyACG_tF	14:body(content:)	95:@MainActor func body(content: RadrootsDocumentExportPresentationModifier.Content) -> some View\n
 6:symbol	11:RadrootsKit	12:swift.method	102:s:11RadrootsKit0A34DocumentImportPresentationModifierV4body7contentQr7SwiftUI05_ViewF8_ContentVyACG_tF	14:body(content:)	95:@MainActor func body(content: RadrootsDocumentImportPresentationModifier.Content) -> some View\n
 6:symbol	11:RadrootsKit	12:swift.method	105:s:11RadrootsKit0A10FileAccessP16sweepStagedBlobs9olderThanSayAA0aF13BlobReferenceVG10Foundation4DateV_tKF	28:sweepStagedBlobs(olderThan:)	104:@discardableResult func sweepStagedBlobs(olderThan cutoff: Date) throws -> [RadrootsStagedBlobReference]
+6:symbol	11:RadrootsKit	12:swift.method	105:s:11RadrootsKit0A15AppleFileAccessC17installStagedBlob_9referencey10Foundation4DataV_AA0agH9ReferenceVtKF	31:installStagedBlob(_:reference:)	83:func installStagedBlob(_ data: Data, reference: RadrootsStagedBlobReference) throws
 6:symbol	11:RadrootsKit	12:swift.method	105:s:11RadrootsKit0A29UnavailableBackgroundTransferV8snapshot3forAA0adE8SnapshotVSgAA0adE10IdentifierV_tYaKF	14:snapshot(for:)	110:func snapshot(for _: RadrootsBackgroundTransferIdentifier) async throws -> RadrootsBackgroundTransferSnapshot?
 6:symbol	11:RadrootsKit	12:swift.method	106:s:11RadrootsKit0A11SecureStoreP3put_3for6policyy10Foundation4DataV_AA0acD3KeyVAA0A18SecretAccessPolicyVtKF	18:put(_:for:policy:)	99:func put(_ value: Data, for key: RadrootsSecureStoreKey, policy: RadrootsSecretAccessPolicy) throws
 6:symbol	11:RadrootsKit	12:swift.method	107:s:11RadrootsKit0A18BackgroundTransferP6settle_12verificationyAA0acD10IdentifierV_AA0acD12VerificationOtYaKF	23:settle(_:verification:)	130:func settle(_ identifier: RadrootsBackgroundTransferIdentifier, verification: RadrootsBackgroundTransferVerification) async throws
@@ -2056,6 +2069,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	12:swift.method	114:s:11RadrootsKit0A35AppleBackgroundTransferFileResolverV4read_12maximumBytes10Foundation4DataVAA0ade5LocalF0O_SitKF	21:read(_:maximumBytes:)	88:func read(_ file: RadrootsBackgroundTransferLocalFile, maximumBytes: Int) throws -> Data
 6:symbol	11:RadrootsKit	12:swift.method	116:s:11RadrootsKit0A10FileAccessP9stageBlob_9mediaType12filenameHintAA0a6StagedF9ReferenceV10Foundation4DataV_SSSgALtKF	36:stageBlob(_:mediaType:filenameHint:)	128:@discardableResult func stageBlob(_ data: Data, mediaType: String?, filenameHint: String?) throws -> RadrootsStagedBlobReference
 6:symbol	11:RadrootsKit	12:swift.method	117:s:11RadrootsKit0A15IdentityCustodyC014exportPortableC010passphraseAA0aC19PortabilityEnvelopeVAA0aC10PassphraseV_tYaKF	35:exportPortableIdentity(passphrase:)	119:func exportPortableIdentity(passphrase: RadrootsIdentityPassphrase) async throws -> RadrootsIdentityPortabilityEnvelope
+6:symbol	11:RadrootsKit	12:swift.method	118:s:11RadrootsKit0A15AppleFileAccessC15leaseStagedBlob_14expectedSHA25610identifierAA0agH5LeaseVAA0agH9ReferenceV_S2StKF	45:leaseStagedBlob(_:expectedSHA256:identifier:)	168:func leaseStagedBlob(_ blob: RadrootsStagedBlobReference, expectedSHA256: String, identifier: String = UUID().uuidString.lowercased()) throws -> RadrootsStagedBlobLease
 6:symbol	11:RadrootsKit	12:swift.method	118:s:11RadrootsKit0A15IdentityCustodyC06importC0_5label15replaceExistingAA0aC8SnapshotVAA0aC14SecretMaterialV_SSSgSbtYaKF	40:importIdentity(_:label:replaceExisting:)	176:@discardableResult func importIdentity(_ material: RadrootsIdentitySecretMaterial, label: String? = nil, replaceExisting: Bool = false) async throws -> RadrootsIdentitySnapshot
 6:symbol	11:RadrootsKit	12:swift.method	118:s:11RadrootsKit0A23AppleBackgroundTransferC015handleEventsForD10URLSession10identifier17completionHandlerySS_yyYbctYaF	66:handleEventsForBackgroundURLSession(identifier:completionHandler:)	117:func handleEventsForBackgroundURLSession(identifier: String, completionHandler: @escaping @Sendable () -> Void) async
 6:symbol	11:RadrootsKit	12:swift.method	118:s:11RadrootsKit0A29UnavailableBackgroundTransferV6settle_12verificationyAA0adE10IdentifierV_AA0adE12VerificationOtYaKF	23:settle(_:verification:)	121:func settle(_: RadrootsBackgroundTransferIdentifier, verification _: RadrootsBackgroundTransferVerification) async throws
@@ -2124,6 +2138,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	12:swift.method	70:s:11RadrootsKit0A34UnavailableBackgroundTaskSchedulerV9cancelAllyyYaKF	11:cancelAll()	29:func cancelAll() async throws
 6:symbol	11:RadrootsKit	12:swift.method	71:s:11RadrootsKit0A24TelemetryRedactionPolicyV19containsUnsafeValueySbSSF	23:containsUnsafeValue(_:)	49:func containsUnsafeValue(_ value: String) -> Bool
 6:symbol	11:RadrootsKit	12:swift.method	71:s:11RadrootsKit0A25BackgroundTransferRequestV6encode2toys7Encoder_p_tKF	11:encode(to:)	43:func encode(to encoder: any Encoder) throws
+6:symbol	11:RadrootsKit	12:swift.method	72:s:11RadrootsKit0A15AppleFileAccessC22releaseStagedBlobLeaseyyAA0aghI0VKF	26:releaseStagedBlobLease(_:)	68:func releaseStagedBlobLease(_ lease: RadrootsStagedBlobLease) throws
 6:symbol	11:RadrootsKit	12:swift.method	72:s:11RadrootsKit0A20AppleExternalActionsC4openyyAA0aD13ActionRequestVYaKF	8:open(_:)	64:func open(_ request: RadrootsExternalActionRequest) async throws
 6:symbol	11:RadrootsKit	12:swift.method	72:s:11RadrootsKit0A23BackgroundTransferStoreP12saveSnapshotyyAA0acdG0VYaKF	16:saveSnapshot(_:)	78:func saveSnapshot(_ snapshot: RadrootsBackgroundTransferSnapshot) async throws
 6:symbol	11:RadrootsKit	12:swift.method	72:s:11RadrootsKit0A26BackgroundTransferProgressV6encode2toys7Encoder_p_tKF	11:encode(to:)	43:func encode(to encoder: any Encoder) throws
@@ -2225,6 +2240,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	12:swift.struct	35:s:11RadrootsKit0A15LocationReadingV	23:RadrootsLocationReading	30:struct RadrootsLocationReading
 6:symbol	11:RadrootsKit	12:swift.struct	35:s:11RadrootsKit0A15OpaqueSignatureV	23:RadrootsOpaqueSignature	30:struct RadrootsOpaqueSignature
 6:symbol	11:RadrootsKit	12:swift.struct	35:s:11RadrootsKit0A15ScannedDocumentV	23:RadrootsScannedDocument	30:struct RadrootsScannedDocument
+6:symbol	11:RadrootsKit	12:swift.struct	35:s:11RadrootsKit0A15StagedBlobLeaseV	23:RadrootsStagedBlobLease	30:struct RadrootsStagedBlobLease
 6:symbol	11:RadrootsKit	12:swift.struct	36:s:11RadrootsKit0A16IdentitySnapshotV	24:RadrootsIdentitySnapshot	31:struct RadrootsIdentitySnapshot
 6:symbol	11:RadrootsKit	12:swift.struct	36:s:11RadrootsKit0A16ImportedDocumentV	24:RadrootsImportedDocument	31:struct RadrootsImportedDocument
 6:symbol	11:RadrootsKit	12:swift.struct	37:s:11RadrootsKit0A17MediaImportResultV	25:RadrootsMediaImportResult	32:struct RadrootsMediaImportResult
@@ -2312,6 +2328,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	45:s:11RadrootsKit0A11ShareResultV9completedSbvp	9:completed	19:let completed: Bool
 6:symbol	11:RadrootsKit	14:swift.property	45:s:11RadrootsKit0A9FileEntryV11isDirectorySbvp	11:isDirectory	21:let isDirectory: Bool
 6:symbol	11:RadrootsKit	14:swift.property	46:s:11RadrootsKit0A12ShareRequestV7subjectSSSgvp	7:subject	20:let subject: String?
+6:symbol	11:RadrootsKit	14:swift.property	46:s:11RadrootsKit0A15StagedBlobLeaseV6sha256SSvp	6:sha256	18:let sha256: String
 6:symbol	11:RadrootsKit	14:swift.property	47:s:11RadrootsKit0A14TelemetryEventV8categorySSvp	8:category	20:let category: String
 6:symbol	11:RadrootsKit	14:swift.property	47:s:11RadrootsKit0A14TelemetryLevelO8severitySivp	8:severity	25:var severity: Int { get }
 6:symbol	11:RadrootsKit	14:swift.property	48:s:11RadrootsKit0A10MediaAssetV4kindAA0aC4KindOvp	4:kind	27:let kind: RadrootsMediaKind
@@ -2326,6 +2343,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	50:s:11RadrootsKit0A21SharePresentationLinkV4bodyQrvp	4:body	38:@MainActor var body: some View { get }
 6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A10MediaAssetV9sizeBytess6UInt64Vvp	9:sizeBytes	21:let sizeBytes: UInt64
 6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A13FileReferenceV12relativePathSSvp	12:relativePath	24:let relativePath: String
+6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A15StagedBlobLeaseV10identifierSSvp	10:identifier	22:let identifier: String
 6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A17ShareTransferItemV7subjectSSSgvp	7:subject	20:let subject: String?
 6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A18LocationCoordinateV8latitudeSdvp	8:latitude	20:let latitude: Double
 6:symbol	11:RadrootsKit	14:swift.property	51:s:11RadrootsKit0A18UserPresenceResultV8verifiedSbvp	8:verified	18:let verified: Bool
@@ -2367,6 +2385,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A10MediaAssetV4fileAA0A13FileReferenceVvp	4:file	31:let file: RadrootsFileReference
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A15LocationReadingV14altitudeMetersSdSgvp	14:altitudeMeters	27:let altitudeMeters: Double?
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A15OpaqueSignatureV16debugDescriptionSSvp	16:debugDescription	36:var debugDescription: String { get }
+6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A15StagedBlobLeaseV16debugDescriptionSSvp	16:debugDescription	36:var debugDescription: String { get }
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A16ImportedDocumentV9sizeBytess6UInt64Vvp	9:sizeBytes	21:let sizeBytes: UInt64
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A18MediaCaptureResultV4itemAA0aC5AssetVvp	4:item	28:let item: RadrootsMediaAsset
 6:symbol	11:RadrootsKit	14:swift.property	57:s:11RadrootsKit0A21ExportDocumentRequestV9mediaTypeSSSgvp	9:mediaType	22:let mediaType: String?
@@ -2381,6 +2400,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	58:s:11RadrootsKit0A22PreparedExportDocumentV10preparedIDSSvp	10:preparedID	22:let preparedID: String
 6:symbol	11:RadrootsKit	14:swift.property	58:s:11RadrootsKit0A22PreparedExportDocumentV9mediaTypeSSSgvp	9:mediaType	22:let mediaType: String?
 6:symbol	11:RadrootsKit	14:swift.property	59:s:11RadrootsKit0A14TelemetryEventV6fieldsSayAA0aC5FieldVGvp	6:fields	36:let fields: [RadrootsTelemetryField]
+6:symbol	11:RadrootsKit	14:swift.property	59:s:11RadrootsKit0A15StagedBlobLeaseV4blobAA0acD9ReferenceVvp	4:blob	37:let blob: RadrootsStagedBlobReference
 6:symbol	11:RadrootsKit	14:swift.property	59:s:11RadrootsKit0A16ImportedDocumentV17suggestedFilenameSSvp	17:suggestedFilename	29:let suggestedFilename: String
 6:symbol	11:RadrootsKit	14:swift.property	59:s:11RadrootsKit0A17OpaqueSignRequestV16debugDescriptionSSvp	16:debugDescription	36:var debugDescription: String { get }
 6:symbol	11:RadrootsKit	14:swift.property	59:s:11RadrootsKit0A18MediaPickerSupportV15importAvailableSbvp	15:importAvailable	25:let importAvailable: Bool
@@ -2394,6 +2414,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	14:swift.property	60:s:11RadrootsKit0A20IdentityPublicRecordV14identityHandleSSvp	14:identityHandle	26:let identityHandle: String
 6:symbol	11:RadrootsKit	14:swift.property	60:s:11RadrootsKit0A21BackgroundTaskRequestV4kindAA0acD4KindOvp	4:kind	36:let kind: RadrootsBackgroundTaskKind
 6:symbol	11:RadrootsKit	14:swift.property	60:s:11RadrootsKit0A26VerifiedArtifactDescriptorV9mediaTypeSSvp	9:mediaType	21:let mediaType: String
+6:symbol	11:RadrootsKit	14:swift.property	61:s:11RadrootsKit0A15StagedBlobLeaseV7fileURL10Foundation0G0Vvp	7:fileURL	16:let fileURL: URL
 6:symbol	11:RadrootsKit	14:swift.property	61:s:11RadrootsKit0A17MediaImportResultV5itemsSayAA0aC5AssetVGvp	5:items	31:let items: [RadrootsMediaAsset]
 6:symbol	11:RadrootsKit	14:swift.property	61:s:11RadrootsKit0A17UserPresenceErrorO16errorDescriptionSSSgvp	16:errorDescription	37:var errorDescription: String? { get }
 6:symbol	11:RadrootsKit	14:swift.property	61:s:11RadrootsKit0A18UserPresenceResultV6policyAA0acD6PolicyOvp	6:policy	38:let policy: RadrootsUserPresencePolicy
@@ -2889,7 +2910,7 @@ radroots.apple-kit.public-api.v1
 6:symbol	11:RadrootsKit	17:swift.type.method	83:s:11RadrootsKit0A16ImportedDocumentV21normalizedOriginalURLy10Foundation0G0VSgAHKFZ	25:normalizedOriginalURL(_:)	69:static func normalizedOriginalURL(_ originalURL: URL?) throws -> URL?
 6:symbol	11:RadrootsKit	17:swift.type.method	83:s:11RadrootsKit0A22PreparedExportDocumentV17normalizedFileURLy10Foundation0H0VAGKFZ	21:normalizedFileURL(_:)	59:static func normalizedFileURL(_ fileURL: URL) throws -> URL
 6:symbol	11:RadrootsKit	17:swift.type.method	84:s:11RadrootsKit0A24ExternalActionValidationO16normalizedWebURLy10Foundation0H0VSSKFZ	20:normalizedWebURL(_:)	59:static func normalizedWebURL(_ value: String) throws -> URL
-6:symbol	11:RadrootsKit	17:swift.type.method	85:s:11RadrootsKit0A14AppleFileRootsV17normalizedRootURL_5field10Foundation0H0VAH_SStKFZ	27:normalizedRootURL(_:field:)	74:static func normalizedRootURL(_ rootURL: URL, field: String) throws -> URL
+6:symbol	11:RadrootsKit	17:swift.type.method	85:s:11RadrootsKit0A14AppleFileRootsV17normalizedRootURL_5field10Foundation0H0VAH_SStKFZ	27:normalizedRootURL(_:field:)	76:static func normalizedRootURL(_ rootURL: URL, field _: String) throws -> URL
 6:symbol	11:RadrootsKit	17:swift.type.method	86:s:11RadrootsKit0A29ApplePermissionStatusAdaptersV019currentNotificationE0AA0adE0OyYaFZ	27:currentNotificationStatus()	73:static func currentNotificationStatus() async -> RadrootsPermissionStatus
 6:symbol	11:RadrootsKit	17:swift.type.method	87:s:11RadrootsKit0A21DocumentImportRequestV22normalizedContentKindsySayAA0acG4KindOGAGKFZ	26:normalizedContentKinds(_:)	128:static func normalizedContentKinds(_ allowedContentKinds: [RadrootsDocumentContentKind]) throws -> [RadrootsDocumentContentKind]
 6:symbol	11:RadrootsKit	17:swift.type.method	87:s:11RadrootsKit0A24ExternalActionValidationO18normalizedNostrURIy10Foundation3URLVSSKFZ	22:normalizedNostrURI(_:)	61:static func normalizedNostrURI(_ value: String) throws -> URL
