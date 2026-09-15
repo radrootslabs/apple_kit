@@ -34,6 +34,10 @@ import Foundation
             let result: RadrootsStagedBackgroundDownloadResult
             do {
                 guard
+                    RadrootsNativeDestinationPolicy.responseMatches(
+                        downloadTask.response?.url, original: downloadTask.originalRequest,
+                        current: downloadTask.currentRequest
+                    ),
                     let descriptor = RadrootsBackgroundURLTaskDescriptor(
                         taskDescription: downloadTask.taskDescription
                     ),
@@ -91,6 +95,15 @@ import Foundation
             if shouldCancel {
                 dataTask.cancel()
             }
+        }
+
+        func urlSession(
+            _: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+            completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+        ) {
+            completionHandler(RadrootsNativeDestinationPolicy.responseMatches(
+                response.url, original: dataTask.originalRequest, current: dataTask.currentRequest
+            ) ? .allow : .cancel)
         }
 
         func urlSession(
@@ -221,7 +234,10 @@ import Foundation
             return RadrootsBackgroundHTTPResult(
                 statusCode: response.statusCode, mediaType: mediaType, body: body,
                 contentEncoding: contentEncoding, bodyExceeded: exceeded,
-                mediaTypeWasMalformed: rawMediaType != nil && mediaType == nil
+                mediaTypeWasMalformed: rawMediaType != nil && mediaType == nil,
+                destinationMismatch: !RadrootsNativeDestinationPolicy.responseMatches(
+                    response.url, original: task.originalRequest, current: task.currentRequest
+                )
             )
         }
 

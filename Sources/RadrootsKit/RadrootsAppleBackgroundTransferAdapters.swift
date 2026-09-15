@@ -1,6 +1,17 @@
 import Foundation
 
 public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
+    /// System-managed background sessions cannot establish the required
+    /// redirect/connect guarantee. Keep their legacy recovery operational,
+    /// and route new public work through the host's shared foreground uploader.
+    public static func supportsNewEnqueue(for policy: RadrootsBackgroundTransferNetworkPolicy) -> Bool {
+        #if os(iOS) && targetEnvironment(simulator)
+            policy == .simulatorLoopbackHTTP
+        #else
+            false
+        #endif
+    }
+
     public let now: @Sendable () -> Date
     public let enqueue: @Sendable (RadrootsBackgroundTransferRequest, UUID) async throws -> Void
     public let cancel: @Sendable (RadrootsBackgroundTransferIdentifier) async throws -> Void
@@ -58,13 +69,14 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
             return Self(
                 now: now,
                 enqueue: { request, executionID in
+                    guard Self.supportsNewEnqueue(for: request.networkPolicy) else {
+                        throw RadrootsBackgroundTransferError.unavailable
+                    }
                     #if targetEnvironment(simulator)
-                        if request.networkPolicy == .simulatorLoopbackHTTP {
-                            try await simulatorSession.enqueue(request, executionID: executionID)
-                            return
-                        }
+                        try await simulatorSession.enqueue(request, executionID: executionID)
+                    #else
+                        throw RadrootsBackgroundTransferError.unavailable
                     #endif
-                    try await session.enqueue(request, executionID: executionID)
                 },
                 cancel: { identifier in
                     #if targetEnvironment(simulator)

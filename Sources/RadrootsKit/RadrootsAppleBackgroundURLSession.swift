@@ -34,6 +34,10 @@ import Foundation
         }
 
         func enqueue(_ request: RadrootsBackgroundTransferRequest, executionID: UUID) async throws {
+            guard usesForegroundSession,
+                  RadrootsAppleBackgroundTransferAdapters.supportsNewEnqueue(for: request.networkPolicy)
+            else { throw RadrootsBackgroundTransferError.unavailable }
+            try RadrootsNativeDestinationPolicy.validate(request.remoteURL, policy: request.networkPolicy)
             guard admissions.count < 256, admissions.insert(request.identifier).inserted else {
                 throw RadrootsBackgroundTransferError.invalidRequest
             }

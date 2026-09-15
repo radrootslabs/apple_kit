@@ -56,30 +56,7 @@ public enum RadrootsBackgroundTransferValidation {
     private static func validate(
         remoteURL: URL, networkPolicy: RadrootsBackgroundTransferNetworkPolicy
     ) throws {
-        guard let components = URLComponents(url: remoteURL, resolvingAgainstBaseURL: false),
-              components.host?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-              components.user == nil,
-              components.password == nil, components.query == nil, components.fragment == nil
-        else {
-            throw RadrootsBackgroundTransferError.invalidRequest
-        }
-        let scheme = components.scheme?.lowercased()
-        switch networkPolicy {
-        case .publicHTTPS:
-            guard scheme == "https" else {
-                throw RadrootsBackgroundTransferError.invalidRequest
-            }
-        case .simulatorLoopbackHTTP:
-            #if os(iOS) && !targetEnvironment(simulator)
-                throw RadrootsBackgroundTransferError.invalidRequest
-            #else
-                guard scheme == "http", let host = components.host?.lowercased(),
-                      host == "localhost" || host == "127.0.0.1" || host == "::1"
-                else {
-                    throw RadrootsBackgroundTransferError.invalidRequest
-                }
-            #endif
-        }
+        try RadrootsNativeDestinationPolicy.validate(remoteURL, policy: networkPolicy)
     }
 
     private static func validate(

@@ -84,6 +84,9 @@ actor RadrootsTransferCoordinator {
     private static func completionFailure(
         request: RadrootsBackgroundTransferRequest, completion: RadrootsTransferCompletion
     ) -> RadrootsBackgroundTransferFailure? {
+        if completion.httpResult.destinationMismatch {
+            return .responseInvalid
+        }
         if UInt64(max(completion.bytesTransferred, 0)) > request.maximumTransferBytes
             || completion.totalBytesExpected.map({ UInt64(max($0, 0)) > request.maximumTransferBytes }) == true {
             return .transferTooLarge
