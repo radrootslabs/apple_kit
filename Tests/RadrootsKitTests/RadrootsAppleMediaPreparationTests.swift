@@ -2,10 +2,9 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+@testable import RadrootsKit
 import Testing
 import UniformTypeIdentifiers
-
-@testable import RadrootsKit
 
 @Test func appleMediaPreparationNormalizesAndCommitsStableFinalBytes() async throws {
     let roots = try mediaPreparationRoots()
@@ -28,8 +27,20 @@ import UniformTypeIdentifiers
     let outputURL = try roots.stagedBlobURL(for: first.file)
     let outputSource = try #require(CGImageSourceCreateWithURL(outputURL as CFURL, nil))
     let outputProperties = try #require(
-        CGImageSourceCopyPropertiesAtIndex(outputSource, 0, nil) as? [CFString: Any])
+        CGImageSourceCopyPropertiesAtIndex(outputSource, 0, nil) as? [CFString: Any]
+    )
     #expect(outputProperties[kCGImagePropertyGPSDictionary] == nil)
+    let exif = outputProperties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+    #expect(Set(exif.keys).isSubset(of: [
+        kCGImagePropertyExifColorSpace,
+        kCGImagePropertyExifPixelXDimension,
+        kCGImagePropertyExifPixelYDimension
+    ]))
+    #expect(outputProperties[kCGImagePropertyTIFFDictionary] == nil)
+    #expect(outputProperties[kCGImagePropertyIPTCDictionary] == nil)
+    let output = try Data(contentsOf: outputURL)
+    #expect(RadrootsAppleFileDigest.sha256(output) == first.sha256)
+    #expect(output.range(of: Data("SECRET_DEVICE".utf8)) == nil)
     #expect((outputProperties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1 == 1)
 }
 
@@ -39,7 +50,8 @@ import UniformTypeIdentifiers
     try writeOrientedImageWithMetadata(to: roots.resolvedURL(for: sourceReference))
     let preparer = RadrootsAppleMediaPreparer(roots: roots)
     let prepared = try await preparer.prepareImage(
-        RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
+        RadrootsAppleImagePreparationRequest(source: .file(sourceReference))
+    )
 
     let request = try await preparer.blossomUploadRequest(
         preparedImage: prepared,
@@ -80,14 +92,17 @@ import UniformTypeIdentifiers
     let bounded = RadrootsAppleMediaPreparer(roots: roots)
     await #expect(throws: RadrootsAppleMediaPreparationError.invalidRequest) {
         _ = try await bounded.prepareImage(
-            RadrootsAppleImagePreparationRequest(source: .file(sourceReference), maximumInputBytes: 1))
+            RadrootsAppleImagePreparationRequest(source: .file(sourceReference), maximumInputBytes: 1)
+        )
     }
 
     let locked = RadrootsAppleMediaPreparer(
-        roots: roots, protectedData: RadrootsProtectedDataProvider { .locked })
+        roots: roots, protectedData: RadrootsProtectedDataProvider { .locked }
+    )
     await #expect(throws: RadrootsAppleMediaPreparationError.unavailable) {
         _ = try await locked.prepareImage(
-            RadrootsAppleImagePreparationRequest(source: .file(sourceReference)))
+            RadrootsAppleImagePreparationRequest(source: .file(sourceReference))
+        )
     }
 }
 
@@ -103,13 +118,21 @@ private func writeOrientedImageWithMetadata(to url: URL) throws {
     context.fill(CGRect(x: 0, y: 0, width: 2, height: 3))
     let image = try #require(context.makeImage())
     try FileManager.default.createDirectory(
-        at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+    )
     let destination = try #require(
-        CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
+        CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+    )
     let properties: [CFString: Any] = [
         kCGImagePropertyOrientation: 6,
         kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 45.0],
-        kCGImageDestinationLossyCompressionQuality: 0.9,
+        kCGImagePropertyTIFFDictionary: [
+            kCGImagePropertyTIFFMake: "SECRET_DEVICE",
+            kCGImagePropertyTIFFModel: "SECRET_DEVICE"
+        ],
+        kCGImagePropertyExifDictionary: [kCGImagePropertyExifUserComment: "SECRET_DEVICE"],
+        kCGImagePropertyIPTCDictionary: [kCGImagePropertyIPTCCaptionAbstract: "SECRET_DEVICE"],
+        kCGImageDestinationLossyCompressionQuality: 0.9
     ]
     CGImageDestinationAddImage(destination, image, properties as CFDictionary)
     try #require(CGImageDestinationFinalize(destination))
