@@ -22,6 +22,25 @@ public struct RadrootsStagedBlobLease: Sendable, Equatable, CustomDebugStringCon
 }
 
 extension RadrootsAppleFileAccess {
+    func leaseUploadBytes(_ bytes: Data, identifier: String) throws -> RadrootsStagedBlobLease {
+        let digest = RadrootsAppleFileDigest.sha256(bytes)
+        let blob = try RadrootsStagedBlobReference(blobID: digest, sizeBytes: bytes.count)
+        let url = try leaseURL(identifier)
+        let lease = RadrootsStagedBlobLease(identifier: identifier, blob: blob, sha256: digest, fileURL: url)
+        do {
+            try RadrootsAtomicFile.install(bytes, at: url, mode: .create, readOnly: true)
+        } catch {
+            try validateLease(lease)
+            try RadrootsAtomicFile.synchronizeExisting(at: url)
+        }
+        try validateLease(lease)
+        return lease
+    }
+
+    func releaseUploadLease(executionID: UUID) throws {
+        try RadrootsAtomicFile.remove(at: leaseURL(executionID.uuidString.lowercased()))
+    }
+
     /// Installs an exact reference without removing a prior file first. Matching
     /// installs are idempotent. An opaque ID cannot replace different bytes;
     /// a SHA256 ID can repair corrupted bytes only with its verified preimage.
@@ -93,7 +112,9 @@ extension RadrootsAppleFileAccess {
         guard try leaseURL(lease.identifier) == lease.fileURL else { throw RadrootsAppleFileError.invalidRequest }
         do {
             try validateLease(lease)
-        } catch RadrootsAppleFileError.notFound { return }
+        } catch RadrootsAppleFileError.notFound {
+            return
+        }
         try RadrootsAtomicFile.remove(at: lease.fileURL)
     }
 
@@ -114,7 +135,9 @@ extension RadrootsAppleFileAccess {
             )
         } catch RadrootsGovernedFileReadError.unavailable {
             throw RadrootsAppleFileError.notFound
-        } catch { throw RadrootsAppleFileError.permanentFailure }
+        } catch {
+            throw RadrootsAppleFileError.permanentFailure
+        }
         guard bytes.count == lease.blob.sizeBytes, RadrootsAppleFileDigest.sha256(bytes) == lease.sha256 else {
             throw RadrootsAppleFileError.permanentFailure
         }

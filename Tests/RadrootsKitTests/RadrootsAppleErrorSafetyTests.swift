@@ -1,96 +1,28 @@
 import Foundation
+@testable import RadrootsKit
 import RadrootsKitTesting
 import Testing
 
-@testable import RadrootsKit
-
 @Test func publicAppleErrorsUseClosedPathFreeDescriptions() {
-    let errors: [any Error] = [
-        RadrootsCaptureIntakeError.invalidRequest,
-        RadrootsCaptureIntakeError.unavailable,
-        RadrootsCaptureIntakeError.permissionDenied,
-        RadrootsCaptureIntakeError.userCancelled,
-        RadrootsCaptureIntakeError.transientFailure,
-        RadrootsCaptureIntakeError.permanentFailure,
-        RadrootsBackgroundTransferError.invalidRequest,
-        RadrootsBackgroundTransferError.unavailable,
-        RadrootsBackgroundTransferError.transferFailure,
-        RadrootsBackgroundTransferError.persistenceFailure,
-        RadrootsDocumentInterchangeError.invalidRequest,
-        RadrootsDocumentInterchangeError.notFound,
-        RadrootsDocumentInterchangeError.userCancelled,
-        RadrootsDocumentInterchangeError.permissionDenied,
-        RadrootsDocumentInterchangeError.transientFailure,
-        RadrootsDocumentInterchangeError.permanentFailure,
-        RadrootsAppLocalStateResetError.invalidRequest,
-        RadrootsAppLocalStateResetError.fileSystemFailure,
-        RadrootsAppLocalStateResetError.keychainFailure,
-        RadrootsAppleMediaPreparationError.invalidRequest,
-        RadrootsAppleMediaPreparationError.unavailable,
-        RadrootsAppleMediaPreparationError.preparationFailure,
-        RadrootsTelemetryError.invalidRequest,
-        RadrootsExternalActionError.invalidRequest,
-        RadrootsExternalActionError.blockedByPolicy,
-        RadrootsExternalActionError.unavailable,
-        RadrootsExternalActionError.transientFailure,
-        RadrootsExternalActionError.permanentFailure,
-        RadrootsAppleFileError.invalidRequest,
-        RadrootsAppleFileError.notFound,
-        RadrootsAppleFileError.permissionDenied,
-        RadrootsAppleFileError.transientFailure,
-        RadrootsAppleFileError.permanentFailure,
-        RadrootsLocationServicesError.invalidRequest,
-        RadrootsLocationServicesError.permissionDenied,
-        RadrootsLocationServicesError.unavailable,
-        RadrootsLocationServicesError.timeout,
-        RadrootsLocationServicesError.cancelled,
-        RadrootsLocationServicesError.transientFailure,
-        RadrootsLocationServicesError.permanentFailure,
-        RadrootsUserPresenceError.invalidRequest,
-        RadrootsUserPresenceError.userCancelled,
-        RadrootsUserPresenceError.permissionDenied,
-        RadrootsUserPresenceError.unavailable,
-        RadrootsUserPresenceError.timeout,
-        RadrootsUserPresenceError.transientFailure,
-        RadrootsUserPresenceError.permanentFailure,
-        RadrootsBackgroundTaskError.invalidRequest,
-        RadrootsBackgroundTaskError.unavailable,
-        RadrootsBackgroundTaskError.schedulerFailure,
-        RadrootsAppleSecurityError.invalidRequest,
-        RadrootsAppleSecurityError.notFound,
-        RadrootsAppleSecurityError.permissionDenied,
-        RadrootsAppleSecurityError.userCancelled,
-        RadrootsAppleSecurityError.transientFailure,
-        RadrootsAppleSecurityError.unavailable,
-        RadrootsAppleSecurityError.permanentFailure,
-        RadrootsAppleSecurityError.keychainFailure,
-        RadrootsAppleMobileStoreError.invalidPublicKey,
-        RadrootsAppleMobileStoreError.protectedDataUnavailable,
-        RadrootsAppleMobileStoreError.invalidDirectoryLayout,
-        RadrootsAppleMobileStoreError.fileSystemFailure,
-        RadrootsVerifiedArtifactAccessError.invalidDescriptor,
-        RadrootsVerifiedArtifactAccessError.protectedDataUnavailable,
-        RadrootsVerifiedArtifactAccessError.artifactUnavailable,
-        RadrootsVerifiedArtifactAccessError.artifactCorrupt,
-        RadrootsVerifiedArtifactAccessError.fileSystemFailure,
-    ]
+    let errors = publicAppleErrorExamples
     let forbidden = [
         "/Users/example/private.sqlite",
         "https://secret.example.invalid/token",
-        "nsec1secretcanary",
+        "nsec1secretcanary"
     ]
 
     for error in errors {
         let renderings = [
             String(describing: error),
             String(reflecting: error),
-            (error as NSError).localizedDescription,
+            (error as NSError).localizedDescription
         ]
         #expect(renderings.allSatisfy { !$0.isEmpty })
         #expect(
             renderings.allSatisfy { rendering in
                 forbidden.allSatisfy { !rendering.contains($0) }
-            })
+            }
+        )
     }
 }
 
@@ -118,86 +50,9 @@ import Testing
 }
 
 @Test func throwingAppleAdaptersMapDependencyDiagnosticsToClosedErrors() async throws {
-    let backgroundTasks = RadrootsAppleBackgroundTaskScheduler(
-        adapters: RadrootsAppleBackgroundTaskSchedulerAdapters(
-            now: { Date(timeIntervalSince1970: 1) },
-            register: { _ in throw dependencyCanaryError() },
-            submit: { _ in throw dependencyCanaryError() },
-            cancel: { _ in },
-            cancelAll: {},
-            pendingTasks: { throw dependencyCanaryError() }
-        )
-    )
-    let registration = try RadrootsAppleBackgroundTaskRegistration(
-        identifier: RadrootsBackgroundTaskIdentifier("org.radroots.error-safety.refresh"),
-        kind: .appRefresh,
-        handler: { true }
-    )
-    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
-        _ = try await backgroundTasks.register(registration)
-    }
-    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
-        _ = try await backgroundTasks.pendingTasks()
-    }
-
-    let location = RadrootsAppleLocationServices(
-        adapters: RadrootsAppleLocationServicesAdapters(
-            now: { Date(timeIntervalSince1970: 1) },
-            locationServicesEnabled: { true },
-            authorizationStatus: { .notDetermined },
-            requestWhenInUseAuthorization: { _ in throw dependencyCanaryError() },
-            requestCurrentLocation: { _ in throw dependencyCanaryError() }
-        )
-    )
-    await #expect(throws: RadrootsLocationServicesError.permanentFailure) {
-        _ = try await location.requestWhenInUseAuthorization()
-    }
-
-    let presence = RadrootsAppleUserPresence(
-        adapters: RadrootsAppleUserPresenceAdapters(
-            currentStatus: { throw dependencyCanaryError() },
-            verify: { _ in throw dependencyCanaryError() }
-        )
-    )
-    await #expect(throws: RadrootsUserPresenceError.permanentFailure) {
-        _ = try await presence.currentStatus()
-    }
-    let request = try RadrootsUserPresenceRequest(reason: "Verify local identity")
-    await #expect(throws: RadrootsUserPresenceError.permanentFailure) {
-        _ = try await presence.verify(request)
-    }
-
-    let transferRequest = try RadrootsBackgroundTransferRequest(
-        identifier: RadrootsBackgroundTransferIdentifier("error-safety.transfer"),
-        remoteURL: #require(URL(string: "https://radroots.org/error-safety")),
-        method: .get,
-        operation: .download(
-            destination: .file(
-                RadrootsFileReference(scope: .cache, relativePath: "error-safety.bin")
-            )
-        )
-    )
-    let storageFailure = RadrootsAppleBackgroundTransfer(
-        store: ThrowingBackgroundTransferStore(),
-        adapters: .unavailable
-    )
-    await #expect(throws: RadrootsBackgroundTransferError.persistenceFailure) {
-        _ = try await storageFailure.enqueue(transferRequest)
-    }
-
-    let adapterFailure = RadrootsAppleBackgroundTransfer(
-        store: RadrootsInMemoryBackgroundTransferStore(),
-        adapters: RadrootsAppleBackgroundTransferAdapters(
-            now: { Date(timeIntervalSince1970: 1) },
-            enqueue: { _ in throw dependencyCanaryError() },
-            cancel: { _ in },
-            activeTransferIdentifiers: { [] },
-            handleBackgroundEvents: { _, completion in completion() }
-        )
-    )
-    await #expect(throws: RadrootsBackgroundTransferError.transferFailure) {
-        _ = try await adapterFailure.enqueue(transferRequest)
-    }
+    try await verifyBackgroundTaskErrorMapping()
+    try await verifyPermissionErrorMapping()
+    try await verifyTransferErrorMapping()
 }
 
 @Test func fileSystemDiagnosticsCannotEscapeTheClosedFileErrorBoundary() throws {
@@ -238,6 +93,23 @@ private func dependencyCanaryError() -> NSError {
 }
 
 private actor ThrowingBackgroundTransferStore: RadrootsBackgroundTransferStore {
+    func withAdmission(
+        for _: RadrootsBackgroundTransferIdentifier,
+        operation _: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
+    ) async throws -> RadrootsBackgroundTransferHandle {
+        throw dependencyCanaryError()
+    }
+
+    func admissionIsActive(for _: RadrootsBackgroundTransferIdentifier) async throws -> Bool {
+        throw dependencyCanaryError()
+    }
+
+    func compareExchangeSnapshot(
+        expected _: RadrootsBackgroundTransferSnapshot?, desired _: RadrootsBackgroundTransferSnapshot
+    ) async throws -> Bool {
+        throw dependencyCanaryError()
+    }
+
     func loadSnapshots() async throws -> [RadrootsBackgroundTransferSnapshot] {
         throw dependencyCanaryError()
     }
@@ -252,5 +124,162 @@ private actor ThrowingBackgroundTransferStore: RadrootsBackgroundTransferStore {
 
     func removeAllSnapshots() async throws {
         throw dependencyCanaryError()
+    }
+}
+
+private let publicAppleErrorExamples: [any Error] = [
+    RadrootsCaptureIntakeError.invalidRequest,
+    RadrootsCaptureIntakeError.unavailable,
+    RadrootsCaptureIntakeError.permissionDenied,
+    RadrootsCaptureIntakeError.userCancelled,
+    RadrootsCaptureIntakeError.transientFailure,
+    RadrootsCaptureIntakeError.permanentFailure,
+    RadrootsBackgroundTransferError.invalidRequest,
+    RadrootsBackgroundTransferError.unavailable,
+    RadrootsBackgroundTransferError.transferFailure,
+    RadrootsBackgroundTransferError.persistenceFailure,
+    RadrootsDocumentInterchangeError.invalidRequest,
+    RadrootsDocumentInterchangeError.notFound,
+    RadrootsDocumentInterchangeError.userCancelled,
+    RadrootsDocumentInterchangeError.permissionDenied,
+    RadrootsDocumentInterchangeError.transientFailure,
+    RadrootsDocumentInterchangeError.permanentFailure,
+    RadrootsAppLocalStateResetError.invalidRequest,
+    RadrootsAppLocalStateResetError.fileSystemFailure,
+    RadrootsAppLocalStateResetError.keychainFailure,
+    RadrootsAppleMediaPreparationError.invalidRequest,
+    RadrootsAppleMediaPreparationError.unavailable,
+    RadrootsAppleMediaPreparationError.preparationFailure,
+    RadrootsTelemetryError.invalidRequest,
+    RadrootsExternalActionError.invalidRequest,
+    RadrootsExternalActionError.blockedByPolicy,
+    RadrootsExternalActionError.unavailable,
+    RadrootsExternalActionError.transientFailure,
+    RadrootsExternalActionError.permanentFailure,
+    RadrootsAppleFileError.invalidRequest,
+    RadrootsAppleFileError.notFound,
+    RadrootsAppleFileError.permissionDenied,
+    RadrootsAppleFileError.transientFailure,
+    RadrootsAppleFileError.permanentFailure,
+    RadrootsLocationServicesError.invalidRequest,
+    RadrootsLocationServicesError.permissionDenied,
+    RadrootsLocationServicesError.unavailable,
+    RadrootsLocationServicesError.timeout,
+    RadrootsLocationServicesError.cancelled,
+    RadrootsLocationServicesError.transientFailure,
+    RadrootsLocationServicesError.permanentFailure,
+    RadrootsUserPresenceError.invalidRequest,
+    RadrootsUserPresenceError.userCancelled,
+    RadrootsUserPresenceError.permissionDenied,
+    RadrootsUserPresenceError.unavailable,
+    RadrootsUserPresenceError.timeout,
+    RadrootsUserPresenceError.transientFailure,
+    RadrootsUserPresenceError.permanentFailure,
+    RadrootsBackgroundTaskError.invalidRequest,
+    RadrootsBackgroundTaskError.unavailable,
+    RadrootsBackgroundTaskError.schedulerFailure,
+    RadrootsAppleSecurityError.invalidRequest,
+    RadrootsAppleSecurityError.notFound,
+    RadrootsAppleSecurityError.permissionDenied,
+    RadrootsAppleSecurityError.userCancelled,
+    RadrootsAppleSecurityError.transientFailure,
+    RadrootsAppleSecurityError.unavailable,
+    RadrootsAppleSecurityError.permanentFailure,
+    RadrootsAppleSecurityError.keychainFailure,
+    RadrootsAppleMobileStoreError.invalidPublicKey,
+    RadrootsAppleMobileStoreError.protectedDataUnavailable,
+    RadrootsAppleMobileStoreError.invalidDirectoryLayout,
+    RadrootsAppleMobileStoreError.fileSystemFailure,
+    RadrootsVerifiedArtifactAccessError.invalidDescriptor,
+    RadrootsVerifiedArtifactAccessError.protectedDataUnavailable,
+    RadrootsVerifiedArtifactAccessError.artifactUnavailable,
+    RadrootsVerifiedArtifactAccessError.artifactCorrupt,
+    RadrootsVerifiedArtifactAccessError.fileSystemFailure
+]
+
+private func verifyBackgroundTaskErrorMapping() async throws {
+    let backgroundTasks = RadrootsAppleBackgroundTaskScheduler(
+        adapters: RadrootsAppleBackgroundTaskSchedulerAdapters(
+            now: { Date(timeIntervalSince1970: 1) },
+            register: { _ in throw dependencyCanaryError() },
+            submit: { _ in throw dependencyCanaryError() },
+            cancel: { _ in },
+            cancelAll: {},
+            pendingTasks: { throw dependencyCanaryError() }
+        )
+    )
+    let registration = try RadrootsAppleBackgroundTaskRegistration(
+        identifier: RadrootsBackgroundTaskIdentifier("org.radroots.error-safety.refresh"),
+        kind: .appRefresh,
+        handler: { true }
+    )
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
+        _ = try await backgroundTasks.register(registration)
+    }
+    await #expect(throws: RadrootsBackgroundTaskError.schedulerFailure) {
+        _ = try await backgroundTasks.pendingTasks()
+    }
+}
+
+private func verifyPermissionErrorMapping() async throws {
+    let location = RadrootsAppleLocationServices(
+        adapters: RadrootsAppleLocationServicesAdapters(
+            now: { Date(timeIntervalSince1970: 1) },
+            locationServicesEnabled: { true },
+            authorizationStatus: { .notDetermined },
+            requestWhenInUseAuthorization: { _ in throw dependencyCanaryError() },
+            requestCurrentLocation: { _ in throw dependencyCanaryError() }
+        )
+    )
+    await #expect(throws: RadrootsLocationServicesError.permanentFailure) {
+        _ = try await location.requestWhenInUseAuthorization()
+    }
+
+    let presence = RadrootsAppleUserPresence(
+        adapters: RadrootsAppleUserPresenceAdapters(
+            currentStatus: { throw dependencyCanaryError() },
+            verify: { _ in throw dependencyCanaryError() }
+        )
+    )
+    await #expect(throws: RadrootsUserPresenceError.permanentFailure) {
+        _ = try await presence.currentStatus()
+    }
+    let request = try RadrootsUserPresenceRequest(reason: "Verify local identity")
+    await #expect(throws: RadrootsUserPresenceError.permanentFailure) {
+        _ = try await presence.verify(request)
+    }
+}
+
+private func verifyTransferErrorMapping() async throws {
+    let transferRequest = try RadrootsBackgroundTransferRequest(
+        identifier: RadrootsBackgroundTransferIdentifier("error-safety.transfer"),
+        remoteURL: #require(URL(string: "https://radroots.org/error-safety")),
+        method: .get,
+        operation: .download(
+            destination: .file(
+                RadrootsFileReference(scope: .cache, relativePath: "error-safety.bin")
+            )
+        )
+    )
+    let storageFailure = RadrootsAppleBackgroundTransfer(
+        store: ThrowingBackgroundTransferStore(),
+        adapters: .unavailable
+    )
+    await #expect(throws: RadrootsBackgroundTransferError.persistenceFailure) {
+        _ = try await storageFailure.enqueue(transferRequest)
+    }
+
+    let adapterFailure = RadrootsAppleBackgroundTransfer(
+        store: RadrootsInMemoryBackgroundTransferStore(),
+        adapters: RadrootsAppleBackgroundTransferAdapters(
+            now: { Date(timeIntervalSince1970: 1) },
+            enqueue: { _, _ in throw dependencyCanaryError() },
+            cancel: { _ in },
+            activeTransferIdentifiers: { [] },
+            handleBackgroundEvents: { _, completion in completion() }
+        )
+    )
+    await #expect(throws: RadrootsBackgroundTransferError.transferFailure) {
+        _ = try await adapterFailure.enqueue(transferRequest)
     }
 }

@@ -9,6 +9,53 @@ enum RadrootsAtomicFile {
     enum Phase: CaseIterable { case afterWriteChunk, afterWrite, beforeFileSync, beforeInstall, beforeDirectorySync }
     static let maximumBytes = 512 * 1024 * 1024
 
+    /// A short, synchronous cross-owner transaction. Contention fails closed
+    /// instead of blocking a cooperative executor or awaiting under a lock.
+    static func withExclusiveLock<T>(at url: URL, _ body: () throws -> T) throws -> T {
+        guard let descriptor = try acquireExclusiveLock(at: url) else {
+            throw RadrootsAppleFileError.permanentFailure
+        }
+        defer { Darwin.close(descriptor) }
+        return try body()
+    }
+
+    /// The caller owns and closes the returned descriptor. Nil denotes only
+    /// active contention; invalid paths and I/O failures remain errors.
+    static func acquireExclusiveLock(at url: URL) throws -> Int32? {
+        let parts = url.path.split(separator: "/").map(String.init)
+        guard url.isFileURL, !url.path.utf8.contains(0), let leaf = parts.last,
+              parts.allSatisfy({ $0 != "." && $0 != ".." })
+        else { throw RadrootsAppleFileError.invalidRequest }
+        let directory = try Directory.open(Array(parts.dropLast()), create: true)
+        defer { Darwin.close(directory.descriptor) }
+        let descriptor = leaf.withCString {
+            Darwin.openat(
+                directory.descriptor,
+                $0,
+                O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | O_EXLOCK,
+                0o600
+            )
+        }
+        guard descriptor >= 0 else {
+            if errno == EWOULDBLOCK {
+                return nil
+            }
+            throw RadrootsAppleFileError.permanentFailure
+        }
+        var value = stat()
+        guard Darwin.fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFREG
+        else {
+            Darwin.close(descriptor)
+            throw RadrootsAppleFileError.permanentFailure
+        }
+        do {
+            try directory.validate()
+        } catch {
+            Darwin.close(descriptor); throw error
+        }
+        return descriptor
+    }
+
     static func install(_ data: Data, at url: URL, mode: Mode = .replace, readOnly: Bool = false) throws {
         try install(data, at: url, mode: mode, readOnly: readOnly, fault: nil)
     }
