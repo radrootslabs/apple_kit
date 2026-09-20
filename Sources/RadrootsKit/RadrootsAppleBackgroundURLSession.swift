@@ -86,8 +86,9 @@ import Foundation
         }
 
         private func alreadyAdmitted(_ identifier: RadrootsBackgroundTransferIdentifier,
-                                     executionID: UUID) async throws -> Bool {
-            let tasks = await allTasks()
+                                     executionID: UUID) async throws -> Bool
+        {
+            let tasks = try await allTasks()
             let existingTasks = tasks.filter {
                 RadrootsBackgroundURLTaskDescriptor(taskDescription: $0.taskDescription)?.identifier == identifier
             }
@@ -101,23 +102,23 @@ import Foundation
             return false
         }
 
-        func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async {
+        func cancel(_ identifier: RadrootsBackgroundTransferIdentifier) async throws {
             if admissions.contains(identifier) {
                 cancelledAdmissions.insert(identifier)
             }
-            let tasks = await allTasks()
+            let tasks = try await allTasks()
             for task in tasks
                 where RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?.identifier
-                == identifier {
+                == identifier
+            {
                 task.cancel()
             }
         }
 
-        func activeTransferIdentifiers() async -> Set<RadrootsBackgroundTransferIdentifier> {
-            let tasks = await allTasks()
-            let identifiers = tasks.compactMap { task -> RadrootsBackgroundTransferIdentifier? in
-                RadrootsBackgroundURLTaskDescriptor(taskDescription: task.taskDescription)?.identifier
-            }
+        func activeTransferIdentifiers() async throws -> Set<RadrootsBackgroundTransferIdentifier> {
+            let tasks = try await allTasks()
+            let identifiers = try RadrootsBackgroundTaskQuery.descriptors(tasks.map(\.taskDescription))
+                .map(\.identifier)
             return Set(identifiers).union(sessionDelegate?.callbacks.pendingIdentifiers ?? [])
         }
 
@@ -130,10 +131,15 @@ import Foundation
             )
         }
 
-        private func allTasks() async -> [URLSessionTask] {
-            await withCheckedContinuation { continuation in
-                backgroundSession().getAllTasks { tasks in continuation.resume(returning: tasks) }
+        private func allTasks() async throws -> [URLSessionTask] {
+            let session = backgroundSession()
+            let tasks = try await RadrootsBackgroundTaskQuery.read { session.getAllTasks(completionHandler: $0) }
+            guard tasks.count <= RadrootsBackgroundTaskQuery.maximumTasks else {
+                throw RadrootsBackgroundTransferError.transferFailure
             }
+            _ = try RadrootsBackgroundTaskQuery.descriptors(tasks.map(\.taskDescription))
+            try Task.checkCancellation()
+            return tasks
         }
 
         private func backgroundSession() -> URLSession {

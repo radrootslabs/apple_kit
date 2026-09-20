@@ -80,14 +80,14 @@ public struct RadrootsAppleBackgroundTransferAdapters: Sendable {
                 },
                 cancel: { identifier in
                     #if targetEnvironment(simulator)
-                        await simulatorSession.cancel(identifier)
+                        try await simulatorSession.cancel(identifier)
                     #endif
-                    await session.cancel(identifier)
+                    try await session.cancel(identifier)
                 },
                 activeTransferIdentifiers: {
-                    var identifiers = await session.activeTransferIdentifiers()
+                    var identifiers = try await session.activeTransferIdentifiers()
                     #if targetEnvironment(simulator)
-                        await identifiers.formUnion(simulatorSession.activeTransferIdentifiers())
+                        try await identifiers.formUnion(simulatorSession.activeTransferIdentifiers())
                     #endif
                     return identifiers
                 },
