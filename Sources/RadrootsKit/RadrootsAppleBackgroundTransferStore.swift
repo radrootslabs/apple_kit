@@ -19,6 +19,12 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let protectedData: RadrootsProtectedDataProvider
+    private var admissionScan: RadrootsAdmissionFileScan?
+
+    private struct Admission {
+        let descriptor: Int32
+        let url: URL
+    }
 
     public init(
         roots: RadrootsAppleFileRoots, fileManager: FileManager = .default,
@@ -40,32 +46,105 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         for identifier: RadrootsBackgroundTransferIdentifier,
         operation: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
     ) async throws -> RadrootsBackgroundTransferHandle {
-        guard let descriptor = try acquireAdmission(identifier) else {
+        guard let admission = try await acquireAdmission(identifier) else {
             throw RadrootsBackgroundTransferError.invalidRequest
         }
         // Only this attempt owns the descriptor across awaits. Persistence uses a
         // separate short lock; neither reservation waits for another owner.
-        defer { Darwin.close(descriptor) }
+        defer { retireAdmission(admission) }
         return try await operation()
     }
 
     public func admissionIsActive(for identifier: RadrootsBackgroundTransferIdentifier) async throws -> Bool {
-        guard let descriptor = try acquireAdmission(identifier) else { return true }
-        Darwin.close(descriptor)
+        guard let admission = try await acquireAdmission(identifier) else { return true }
+        retireAdmission(admission)
         return false
     }
 
-    private func acquireAdmission(_ identifier: RadrootsBackgroundTransferIdentifier) throws -> Int32? {
+    private func acquireAdmission(_ identifier: RadrootsBackgroundTransferIdentifier) async throws -> Admission? {
         try requireProtectedData()
+        let coordination = try await acquireAdmissionCoordination()
+        defer { Darwin.close(coordination) }
         do {
             let name = RadrootsAppleFileDigest.sha256(Data(identifier.rawValue.utf8))
             let url = try roots.resolvedURL(for: RadrootsFileReference(
                 scope: .data, relativePath: "background_transfers/admissions/\(name).lock"
             ))
-            return try RadrootsAtomicFile.acquireExclusiveLock(at: url)
+            guard let descriptor = try RadrootsAtomicFile.acquireExclusiveLock(at: url) else { return nil }
+            return Admission(descriptor: descriptor, url: url)
+        } catch RadrootsAppleFileError.transientFailure {
+            throw RadrootsBackgroundTransferError.unavailable
         } catch {
             throw RadrootsBackgroundTransferError.persistenceFailure
         }
+    }
+
+    private func admissionCoordinationURL() throws -> URL {
+        try roots.resolvedURL(for: RadrootsFileReference(
+            scope: .data, relativePath: "background_transfers/admissions/.coordination.lock"
+        ))
+    }
+
+    private func acquireAdmissionCoordination() async throws -> Int32 {
+        for _ in 0 ..< 16 {
+            try Task.checkCancellation()
+            try requireProtectedData()
+            do {
+                if let descriptor = try RadrootsAtomicFile.acquireExclusiveLock(at: admissionCoordinationURL()) {
+                    return descriptor
+                }
+            } catch RadrootsAppleFileError.transientFailure {
+                // The leaf was not created within its bounded retry budget.
+            } catch { throw RadrootsBackgroundTransferError.persistenceFailure }
+            await Task.yield()
+        }
+        throw RadrootsBackgroundTransferError.unavailable
+    }
+
+    private func retireAdmission(_ admission: Admission) {
+        do {
+            try requireProtectedData()
+            guard let coordination = try RadrootsAtomicFile.acquireExclusiveLock(at: admissionCoordinationURL()) else {
+                Darwin.close(admission.descriptor)
+                return
+            }
+            // Close the retired inode before releasing the acquisition gate.
+            defer { Darwin.close(admission.descriptor); Darwin.close(coordination) }
+            _ = try? RadrootsAtomicFile.removeEmptyLockedFile(at: admission.url, descriptor: admission.descriptor)
+        } catch {
+            // Cleanup failure never rewrites the operation result. A later
+            // explicit pass may reconcile the retained inactive inode.
+            Darwin.close(admission.descriptor)
+        }
+    }
+
+    /// Explicit metadata housekeeping. Each call visits at most 64 directory
+    /// entries and continues this store's pass. A new pass starts after its end;
+    /// restarting the owner starts over. Snapshots and upload leases are untouched.
+    public func collectInactiveAdmissions(limit: Int = 64) async throws -> RadrootsAdmissionCleanupResult {
+        guard (1 ... 64).contains(limit) else { throw RadrootsBackgroundTransferError.invalidRequest }
+        let coordination = try await acquireAdmissionCoordination()
+        defer { Darwin.close(coordination) }
+        do {
+            let directory = try admissionCoordinationURL().deletingLastPathComponent()
+            if admissionScan == nil { admissionScan = try RadrootsAdmissionFileScan(url: directory) }
+            guard let admissionScan else { throw RadrootsBackgroundTransferError.persistenceFailure }
+            let batch = try admissionScan.next(limit: limit)
+            var removed = 0
+            for name in batch.names where Self.isAdmissionFilename(name) {
+                if try admissionScan.removeInactive(name: name, coordination: coordination) { removed += 1 }
+            }
+            if batch.reachedEnd { self.admissionScan = nil }
+            return RadrootsAdmissionCleanupResult(scannedEntries: batch.scanned, removedFiles: removed, reachedEnd: batch.reachedEnd)
+        } catch {
+            admissionScan = nil
+            throw RadrootsBackgroundTransferError.persistenceFailure
+        }
+    }
+
+    private static func isAdmissionFilename(_ name: String) -> Bool {
+        name.utf8.count == 69 && name.hasSuffix(".lock")
+            && name.utf8.prefix(64).allSatisfy { (48 ... 57).contains($0) || (97 ... 102).contains($0) }
     }
 
     public func compareExchangeSnapshot(

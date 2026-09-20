@@ -21,26 +21,44 @@ enum RadrootsAtomicFile {
 
     /// The caller owns and closes the returned descriptor. Nil denotes only
     /// active contention; invalid paths and I/O failures remain errors.
-    static func acquireExclusiveLock(at url: URL) throws -> Int32? {
+    static func acquireExclusiveLock(
+        at url: URL, create: Bool = true, injectedOpenError: ((Int) throws -> Int32?)? = nil
+    ) throws -> Int32? {
         let parts = url.path.split(separator: "/").map(String.init)
         guard url.isFileURL, !url.path.utf8.contains(0), let leaf = parts.last,
               parts.allSatisfy({ $0 != "." && $0 != ".." })
         else { throw RadrootsAppleFileError.invalidRequest }
-        let directory = try Directory.open(Array(parts.dropLast()), create: true)
+        let directory = try Directory.open(Array(parts.dropLast()), create: create)
         defer { Darwin.close(directory.descriptor) }
-        let descriptor = leaf.withCString {
-            Darwin.openat(
-                directory.descriptor,
-                $0,
-                O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | O_EXLOCK,
-                0o600
-            )
+        return try acquireExclusiveLock(in: directory, name: leaf, create: create, injectedOpenError: injectedOpenError)
+    }
+
+    static func acquireExclusiveLock(
+        in directory: Directory, name: String, create: Bool, injectedOpenError: ((Int) throws -> Int32?)? = nil
+    ) throws -> Int32? {
+        guard !name.isEmpty, !name.contains("/"), !name.utf8.contains(0), name != ".", name != ".." else {
+            throw RadrootsAppleFileError.invalidRequest
         }
-        guard descriptor >= 0 else {
-            if errno == EWOULDBLOCK {
-                return nil
+        var descriptor: Int32 = -1
+        // Concurrent first creation can return ENOENT even with O_CREAT. Retry
+        // only that absence, under the exact validated parent and a fixed bound.
+        // The injection is synchronous and used only by filesystem regressions.
+        for attempt in 0 ..< 4 {
+            try directory.validate()
+            let opened: (Int32, Int32)
+            if let error = try injectedOpenError?(attempt) {
+                opened = (-1, error)
+            } else {
+                opened = name.withCString {
+                    let value = Darwin.openat(directory.descriptor, $0,
+                        O_RDWR | (create ? O_CREAT : 0) | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | O_EXLOCK, 0o600)
+                    return (value, errno)
+                }
             }
-            throw RadrootsAppleFileError.permanentFailure
+            if opened.0 >= 0 { descriptor = opened.0; break }
+            if opened.1 == EWOULDBLOCK || !create && opened.1 == ENOENT { return nil }
+            guard create, opened.1 == ENOENT else { throw RadrootsAppleFileError.permanentFailure }
+            if attempt == 3 { throw RadrootsAppleFileError.transientFailure }
         }
         var value = stat()
         guard Darwin.fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFREG
@@ -54,6 +72,38 @@ enum RadrootsAtomicFile {
             Darwin.close(descriptor); throw error
         }
         return descriptor
+    }
+
+    /// The caller holds this reservation and its acquisition/retirement gate.
+    /// Never unlink an inode substituted after the descriptor was acquired.
+    static func removeEmptyLockedFile(at url: URL, descriptor: Int32) throws -> Bool {
+        let parts = url.path.split(separator: "/").map(String.init)
+        guard url.isFileURL, !url.path.utf8.contains(0), let leaf = parts.last,
+              parts.allSatisfy({ $0 != "." && $0 != ".." })
+        else { throw RadrootsAppleFileError.invalidRequest }
+        let directory = try Directory.open(Array(parts.dropLast()), create: false)
+        defer { Darwin.close(directory.descriptor) }
+        return try removeEmptyLockedFile(in: directory, name: leaf, descriptor: descriptor)
+    }
+
+    static func removeEmptyLockedFile(in directory: Directory, name: String, descriptor: Int32) throws -> Bool {
+        guard !name.isEmpty, !name.contains("/"), !name.utf8.contains(0), name != ".", name != ".." else {
+            throw RadrootsAppleFileError.invalidRequest
+        }
+        var owned = stat()
+        guard Darwin.fstat(descriptor, &owned) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard owned.st_mode & S_IFMT == S_IFREG, owned.st_size == 0 else { return false }
+        try directory.validate()
+        var current = stat()
+        let found = name.withCString { Darwin.fstatat(directory.descriptor, $0, &current, AT_SYMLINK_NOFOLLOW) }
+        if found != 0, errno == ENOENT { return false }
+        guard found == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard current.st_mode & S_IFMT == S_IFREG, current.st_size == 0,
+              current.st_dev == owned.st_dev, current.st_ino == owned.st_ino else { return false }
+        guard name.withCString({ Darwin.unlinkat(directory.descriptor, $0, 0) }) == 0,
+              Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        try directory.validate()
+        return true
     }
 
     static func install(_ data: Data, at url: URL, mode: Mode = .replace, readOnly: Bool = false) throws {
@@ -190,10 +240,10 @@ enum RadrootsAtomicFile {
         }
     }
 
-    private struct Directory {
+    struct Directory {
         let descriptor: Int32
         let parts: [String]
-        let identities: [Identity]
+        private let identities: [Identity]
 
         static func open(_ parts: [String], create: Bool) throws -> Self {
             var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
