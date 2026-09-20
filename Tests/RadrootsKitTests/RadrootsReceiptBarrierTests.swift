@@ -116,7 +116,8 @@ private actor ReceiptBarrierStore: RadrootsBackgroundTransferStore {
     }
 
     func compareExchangeSnapshot(expected: RadrootsBackgroundTransferSnapshot?,
-                                 desired: RadrootsBackgroundTransferSnapshot) async throws -> Bool {
+                                 desired: RadrootsBackgroundTransferSnapshot) async throws -> Bool
+    {
         if desired.state == .awaitingVerification {
             terminalAttempts += 1
             if terminalAttempts == 1 {
@@ -142,9 +143,10 @@ private actor ReceiptBarrierStore: RadrootsBackgroundTransferStore {
         return exchanged
     }
 
-    func withAdmission(for identifier: RadrootsBackgroundTransferIdentifier,
-                       operation: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle)
-        async throws -> RadrootsBackgroundTransferHandle {
+    func withAdmission<Result: Sendable>(for identifier: RadrootsBackgroundTransferIdentifier,
+                                         operation: @escaping @Sendable () async throws -> Result)
+        async throws -> Result
+    {
         try await storage.withAdmission(for: identifier, operation: operation)
     }
 

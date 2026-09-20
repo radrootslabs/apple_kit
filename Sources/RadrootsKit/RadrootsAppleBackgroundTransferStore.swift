@@ -42,10 +42,10 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         try withStoreLock { try loadSnapshotsSynchronously() }
     }
 
-    public func withAdmission(
+    public func withAdmission<Result: Sendable>(
         for identifier: RadrootsBackgroundTransferIdentifier,
-        operation: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
-    ) async throws -> RadrootsBackgroundTransferHandle {
+        operation: @escaping @Sendable () async throws -> Result
+    ) async throws -> Result {
         guard let admission = try await acquireAdmission(identifier) else {
             throw RadrootsBackgroundTransferError.invalidRequest
         }
@@ -127,14 +127,20 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         defer { Darwin.close(coordination) }
         do {
             let directory = try admissionCoordinationURL().deletingLastPathComponent()
-            if admissionScan == nil { admissionScan = try RadrootsAdmissionFileScan(url: directory) }
+            if admissionScan == nil {
+                admissionScan = try RadrootsAdmissionFileScan(url: directory)
+            }
             guard let admissionScan else { throw RadrootsBackgroundTransferError.persistenceFailure }
             let batch = try admissionScan.next(limit: limit)
             var removed = 0
             for name in batch.names where Self.isAdmissionFilename(name) {
-                if try admissionScan.removeInactive(name: name, coordination: coordination) { removed += 1 }
+                if try admissionScan.removeInactive(name: name, coordination: coordination) {
+                    removed += 1
+                }
             }
-            if batch.reachedEnd { self.admissionScan = nil }
+            if batch.reachedEnd {
+                self.admissionScan = nil
+            }
             return RadrootsAdmissionCleanupResult(scannedEntries: batch.scanned, removedFiles: removed, reachedEnd: batch.reachedEnd)
         } catch {
             admissionScan = nil

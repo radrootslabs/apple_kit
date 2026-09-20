@@ -19,7 +19,8 @@ extension RadrootsBackgroundTransferError: LocalizedError {
 }
 
 public struct RadrootsBackgroundTransferIdentifier: Sendable, Equatable, Hashable, Comparable,
-    Codable {
+    Codable
+{
     public let rawValue: String
 
     public init(_ value: String) throws {
@@ -52,7 +53,8 @@ public struct RadrootsBackgroundTransferIdentifier: Sendable, Equatable, Hashabl
 }
 
 public enum RadrootsBackgroundTransferMethod: String, Sendable, Equatable, Hashable, Codable,
-    CaseIterable {
+    CaseIterable
+{
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -69,7 +71,8 @@ public enum RadrootsBackgroundTransferOperation: Sendable, Equatable, Hashable, 
 }
 
 public enum RadrootsBackgroundTransferState: String, Sendable, Equatable, Hashable, Codable,
-    CaseIterable {
+    CaseIterable
+{
     case queued
     case running
     case awaitingVerification
@@ -81,7 +84,8 @@ public enum RadrootsBackgroundTransferState: String, Sendable, Equatable, Hashab
 }
 
 public enum RadrootsBackgroundTransferFailure: String, Sendable, Equatable, Hashable, Codable,
-    CaseIterable {
+    CaseIterable
+{
     case enqueueFailed = "background_transfer_enqueue_failed"
     case expired = "background_transfer_expired"
     case interrupted = "background_transfer_interrupted"
@@ -106,10 +110,10 @@ public enum RadrootsBackgroundTransferNetworkPolicy: String, Sendable, Equatable
 public protocol RadrootsBackgroundTransferStore: Sendable {
     /// Serializes admission across suspension and independent owners. This is a
     /// nonblocking reservation, separate from short persistence transactions.
-    func withAdmission(
+    func withAdmission<Result: Sendable>(
         for identifier: RadrootsBackgroundTransferIdentifier,
-        operation: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
-    ) async throws -> RadrootsBackgroundTransferHandle
+        operation: @escaping @Sendable () async throws -> Result
+    ) async throws -> Result
     func admissionIsActive(for identifier: RadrootsBackgroundTransferIdentifier) async throws -> Bool
     /// Atomically installs a redacted snapshot only if the exact expected value
     /// still owns the identifier. Nil reserves a previously absent identifier.
@@ -123,6 +127,16 @@ public protocol RadrootsBackgroundTransferStore: Sendable {
 }
 
 public protocol RadrootsBackgroundTransfer: Sendable {
+    /// Explicitly reconcile the OS and retain exclusive admission for this prior
+    /// identifier during bounded caller work. Only absent or inactive failed
+    /// execution without a retained response is admitted. Unknown state throws.
+    /// This does not establish absence of remote effects or grant retry/signing
+    /// authority. Preserve prior lineage and use a new identifier for renewal;
+    /// enqueue/retry of the reserved identifier is rejected until the body exits.
+    func withInactiveExecution<Result: Sendable>(
+        for identifier: RadrootsBackgroundTransferIdentifier,
+        operation: @escaping @Sendable (RadrootsBackgroundTransferSnapshot?) async throws -> Result
+    ) async throws -> Result
     func enqueue(_ request: RadrootsBackgroundTransferRequest) async throws
         -> RadrootsBackgroundTransferHandle
     func retry(_ request: RadrootsBackgroundTransferRequest) async throws
@@ -141,6 +155,15 @@ public protocol RadrootsBackgroundTransfer: Sendable {
     ) async
 }
 
+public extension RadrootsBackgroundTransfer {
+    func withInactiveExecution<Result: Sendable>(
+        for _: RadrootsBackgroundTransferIdentifier,
+        operation _: @escaping @Sendable (RadrootsBackgroundTransferSnapshot?) async throws -> Result
+    ) async throws -> Result {
+        throw RadrootsBackgroundTransferError.unavailable
+    }
+}
+
 public protocol RadrootsBackgroundTransferFileResolver: Sendable {
     func resolve(_ file: RadrootsBackgroundTransferLocalFile) throws -> URL
     func read(_ file: RadrootsBackgroundTransferLocalFile, maximumBytes: Int) throws -> Data
@@ -155,12 +178,14 @@ public struct RadrootsUnavailableBackgroundTransfer: RadrootsBackgroundTransfer,
     public init() {}
 
     public func enqueue(_: RadrootsBackgroundTransferRequest) async throws
-        -> RadrootsBackgroundTransferHandle {
+        -> RadrootsBackgroundTransferHandle
+    {
         throw RadrootsBackgroundTransferError.unavailable
     }
 
     public func retry(_: RadrootsBackgroundTransferRequest) async throws
-        -> RadrootsBackgroundTransferHandle {
+        -> RadrootsBackgroundTransferHandle
+    {
         throw RadrootsBackgroundTransferError.unavailable
     }
 
@@ -180,7 +205,8 @@ public struct RadrootsUnavailableBackgroundTransfer: RadrootsBackgroundTransfer,
     }
 
     public func snapshot(for _: RadrootsBackgroundTransferIdentifier) async throws
-        -> RadrootsBackgroundTransferSnapshot? {
+        -> RadrootsBackgroundTransferSnapshot?
+    {
         throw RadrootsBackgroundTransferError.unavailable
     }
 

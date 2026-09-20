@@ -8,14 +8,14 @@ import Testing
     let forbidden = [
         "/Users/example/private.sqlite",
         "https://secret.example.invalid/token",
-        "nsec1secretcanary"
+        "nsec1secretcanary",
     ]
 
     for error in errors {
         let renderings = [
             String(describing: error),
             String(reflecting: error),
-            (error as NSError).localizedDescription
+            (error as NSError).localizedDescription,
         ]
         #expect(renderings.allSatisfy { !$0.isEmpty })
         #expect(
@@ -32,7 +32,7 @@ import Testing
         code: 7,
         userInfo: [
             NSLocalizedDescriptionKey:
-                "https://secret.example.invalid/token nsec1secretcanary"
+                "https://secret.example.invalid/token nsec1secretcanary",
         ]
     )
 
@@ -93,10 +93,10 @@ private func dependencyCanaryError() -> NSError {
 }
 
 private actor ThrowingBackgroundTransferStore: RadrootsBackgroundTransferStore {
-    func withAdmission(
+    func withAdmission<Result: Sendable>(
         for _: RadrootsBackgroundTransferIdentifier,
-        operation _: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
-    ) async throws -> RadrootsBackgroundTransferHandle {
+        operation _: @escaping @Sendable () async throws -> Result
+    ) async throws -> Result {
         throw dependencyCanaryError()
     }
 
@@ -194,7 +194,7 @@ private let publicAppleErrorExamples: [any Error] = [
     RadrootsVerifiedArtifactAccessError.protectedDataUnavailable,
     RadrootsVerifiedArtifactAccessError.artifactUnavailable,
     RadrootsVerifiedArtifactAccessError.artifactCorrupt,
-    RadrootsVerifiedArtifactAccessError.fileSystemFailure
+    RadrootsVerifiedArtifactAccessError.fileSystemFailure,
 ]
 
 private func verifyBackgroundTaskErrorMapping() async throws {

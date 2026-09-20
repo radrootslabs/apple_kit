@@ -5,6 +5,9 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     private let adapters: RadrootsAppleBackgroundTransferAdapters
     private var admissions: Set<RadrootsBackgroundTransferIdentifier> = []
     private var stoppedAdmissions: [RadrootsBackgroundTransferIdentifier: RadrootsBackgroundTransferState] = [:]
+    private struct InactiveExecutionBodyError: Error {
+        let underlying: any Error
+    }
 
     public init(store: any RadrootsBackgroundTransferStore, adapters: RadrootsAppleBackgroundTransferAdapters) {
         self.store = store
@@ -33,6 +36,48 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         try reserve(request.identifier)
         defer { release(request.identifier) }
         return try await admission(request, retry: true)
+    }
+
+    public func withInactiveExecution<Result: Sendable>(
+        for identifier: RadrootsBackgroundTransferIdentifier,
+        operation: @escaping @Sendable (RadrootsBackgroundTransferSnapshot?) async throws -> Result
+    ) async throws -> Result {
+        try Task.checkCancellation()
+        try reserve(identifier)
+        defer { release(identifier) }
+        do {
+            return try await store.withAdmission(for: identifier) {
+                let snapshot = try await self.inactiveSnapshot(identifier)
+                try Task.checkCancellation()
+                do { return try await operation(snapshot) }
+                catch { throw InactiveExecutionBodyError(underlying: error) }
+            }
+        } catch let error as InactiveExecutionBodyError {
+            throw error.underlying
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as RadrootsBackgroundTransferError {
+            throw error
+        } catch {
+            throw RadrootsBackgroundTransferError.persistenceFailure
+        }
+    }
+
+    private func inactiveSnapshot(
+        _ identifier: RadrootsBackgroundTransferIdentifier
+    ) async throws -> RadrootsBackgroundTransferSnapshot? {
+        guard try await !activeIdentifiers().contains(identifier), stoppedAdmissions[identifier] == nil else {
+            throw RadrootsBackgroundTransferError.transferFailure
+        }
+        let snapshot = try await load(identifier)
+        if let snapshot {
+            guard [.failed, .interrupted, .cancelled, .expired].contains(snapshot.state),
+                  snapshot.response == nil, snapshot.downloadedArtifact == nil
+            else { throw RadrootsBackgroundTransferError.transferFailure }
+        }
+        // Do not rewrite state, drop a receipt or cancel an OS task. Completion
+        // callbacks may still persist late evidence while admission is held.
+        return snapshot
     }
 
     private func admission(
@@ -104,7 +149,8 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
                 try? await adapters.cancel(request.identifier)
             }
             if let current = try await load(request.identifier), current.executionID == queued.executionID,
-               current.state == .queued || current.state == .running {
+               current.state == .queued || current.state == .running
+            {
                 _ = try await exchange(current, current.transitioned(to: .failed, at: adapters.now(),
                                                                      failure: .enqueueFailed,
                                                                      possibleRemoteOrphan: request.isUpload))
@@ -114,7 +160,8 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         if stoppedAdmissions[request.identifier] != nil || Task.isCancelled {
             try await stop(request.identifier, state: stoppedAdmissions[request.identifier] ?? .cancelled)
         } else if let current = try await load(request.identifier), current.executionID == queued.executionID,
-                  current.state == .queued {
+                  current.state == .queued
+        {
             _ = try await exchange(current, current.transitioned(to: .running, at: adapters.now()))
         }
         return RadrootsBackgroundTransferHandle(request: request)
@@ -177,7 +224,8 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     }
 
     public func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws
-        -> RadrootsBackgroundTransferSnapshot? {
+        -> RadrootsBackgroundTransferSnapshot?
+    {
         try await snapshots().first { $0.identifier == identifier }
     }
 
@@ -216,7 +264,8 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
     }
 
     private func load(_ identifier: RadrootsBackgroundTransferIdentifier) async throws
-        -> RadrootsBackgroundTransferSnapshot? {
+        -> RadrootsBackgroundTransferSnapshot?
+    {
         try await loadAll().first { $0.identifier == identifier }
     }
 

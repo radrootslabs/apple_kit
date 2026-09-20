@@ -4,10 +4,10 @@ import RadrootsKit
 public actor RadrootsInMemoryBackgroundTransferStore: RadrootsBackgroundTransferStore {
     private var admissions: Set<RadrootsBackgroundTransferIdentifier> = []
 
-    public func withAdmission(
+    public func withAdmission<Result: Sendable>(
         for identifier: RadrootsBackgroundTransferIdentifier,
-        operation: @escaping @Sendable () async throws -> RadrootsBackgroundTransferHandle
-    ) async throws -> RadrootsBackgroundTransferHandle {
+        operation: @escaping @Sendable () async throws -> Result
+    ) async throws -> Result {
         guard admissions.insert(identifier).inserted else { throw RadrootsBackgroundTransferError.invalidRequest }
         defer { admissions.remove(identifier) }
         return try await operation()
@@ -79,7 +79,8 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     }
 
     public func enqueue(_ request: RadrootsBackgroundTransferRequest) async throws
-        -> RadrootsBackgroundTransferHandle {
+        -> RadrootsBackgroundTransferHandle
+    {
         enqueuedRequestsValue.append(request)
         switch enqueueOutcome {
         case .success:
@@ -96,7 +97,8 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     }
 
     public func retry(_ request: RadrootsBackgroundTransferRequest) async throws
-        -> RadrootsBackgroundTransferHandle {
+        -> RadrootsBackgroundTransferHandle
+    {
         try await enqueue(request)
     }
 
@@ -197,7 +199,8 @@ public actor RadrootsFakeBackgroundTransfer: RadrootsBackgroundTransfer {
     }
 
     public func snapshot(for identifier: RadrootsBackgroundTransferIdentifier) async throws
-        -> RadrootsBackgroundTransferSnapshot? {
+        -> RadrootsBackgroundTransferSnapshot?
+    {
         try await store.loadSnapshots().first { $0.identifier == identifier }
     }
 
