@@ -7,6 +7,7 @@ public enum RadrootsCaptureIntakeError: Error, Equatable, Sendable {
     case userCancelled
     case transientFailure
     case permanentFailure
+    case spaceInsufficient
 }
 
 extension RadrootsCaptureIntakeError: LocalizedError {
@@ -18,6 +19,7 @@ extension RadrootsCaptureIntakeError: LocalizedError {
         case .userCancelled: "Capture was cancelled."
         case .transientFailure: "Capture could not be completed temporarily."
         case .permanentFailure: "Capture could not be completed."
+        case .spaceInsufficient: "There is not enough storage space to save the capture."
         }
     }
 }

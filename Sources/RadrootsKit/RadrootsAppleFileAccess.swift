@@ -6,10 +6,18 @@ public final class RadrootsAppleFileAccess: RadrootsFileAccess {
 
     public let roots: RadrootsAppleFileRoots
     let fileManager: FileManager
+    let persistence: RadrootsFilePersistence
 
     public init(roots: RadrootsAppleFileRoots, fileManager: FileManager = .default) {
         self.roots = roots
         self.fileManager = fileManager
+        persistence = .live
+    }
+
+    init(roots: RadrootsAppleFileRoots, persistence: RadrootsFilePersistence) {
+        self.roots = roots
+        fileManager = .default
+        self.persistence = persistence
     }
 
     public func write(_ payload: RadrootsFilePayload, to file: RadrootsFileReference) throws {

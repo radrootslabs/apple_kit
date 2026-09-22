@@ -5,7 +5,7 @@ import Foundation
 /// preserves the prior destination; an error after publication is ambiguous and
 /// callers must inspect/recover the exact destination before acknowledging it.
 enum RadrootsAtomicFile {
-    enum Mode { case replace, create }
+    enum Mode: Sendable { case replace, create }
     enum Phase: CaseIterable { case afterWriteChunk, afterWrite, beforeFileSync, beforeInstall, beforeDirectorySync }
     static let maximumBytes = 512 * 1024 * 1024
 
@@ -57,12 +57,16 @@ enum RadrootsAtomicFile {
             }
             if opened.0 >= 0 { descriptor = opened.0; break }
             if opened.1 == EWOULDBLOCK || !create && opened.1 == ENOENT { return nil }
-            guard create, opened.1 == ENOENT else { throw RadrootsAppleFileError.permanentFailure }
+            guard create, opened.1 == ENOENT else { throw RadrootsAppleFileError.posix(opened.1) }
             if attempt == 3 { throw RadrootsAppleFileError.transientFailure }
         }
         var value = stat()
-        guard Darwin.fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFREG
-        else {
+        guard Darwin.fstat(descriptor, &value) == 0 else {
+            let failure = RadrootsAppleFileError.posix(errno)
+            Darwin.close(descriptor)
+            throw failure
+        }
+        guard value.st_mode & S_IFMT == S_IFREG else {
             Darwin.close(descriptor)
             throw RadrootsAppleFileError.permanentFailure
         }
@@ -91,17 +95,18 @@ enum RadrootsAtomicFile {
             throw RadrootsAppleFileError.invalidRequest
         }
         var owned = stat()
-        guard Darwin.fstat(descriptor, &owned) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard Darwin.fstat(descriptor, &owned) == 0 else { throw RadrootsAppleFileError.posix(errno) }
         guard owned.st_mode & S_IFMT == S_IFREG, owned.st_size == 0 else { return false }
         try directory.validate()
         var current = stat()
         let found = name.withCString { Darwin.fstatat(directory.descriptor, $0, &current, AT_SYMLINK_NOFOLLOW) }
         if found != 0, errno == ENOENT { return false }
-        guard found == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard found == 0 else { throw RadrootsAppleFileError.posix(errno) }
         guard current.st_mode & S_IFMT == S_IFREG, current.st_size == 0,
               current.st_dev == owned.st_dev, current.st_ino == owned.st_ino else { return false }
-        guard name.withCString({ Darwin.unlinkat(directory.descriptor, $0, 0) }) == 0,
-              Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard name.withCString({ Darwin.unlinkat(directory.descriptor, $0, 0) }) == 0
+        else { throw RadrootsAppleFileError.posix(errno) }
+        guard Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
         try directory.validate()
         return true
     }
@@ -111,9 +116,10 @@ enum RadrootsAtomicFile {
     }
 
     static func installForTesting(
-        _ data: Data, at url: URL, mode: Mode = .replace, fault: @escaping (Phase) throws -> Void
+        _ data: Data, at url: URL, mode: Mode = .replace, readOnly: Bool = false,
+        fault: @escaping (Phase) throws -> Void
     ) throws {
-        try install(data, at: url, mode: mode, readOnly: false, fault: fault)
+        try install(data, at: url, mode: mode, readOnly: readOnly, fault: fault)
     }
 
     static func remove(at url: URL) throws {
@@ -124,13 +130,13 @@ enum RadrootsAtomicFile {
         let directory = try Directory.open(Array(parts.dropLast()), create: false)
         defer { Darwin.close(directory.descriptor) }
         var value = stat()
-        guard leaf.withCString({ Darwin.fstatat(directory.descriptor, $0, &value, AT_SYMLINK_NOFOLLOW) }) == 0,
-              value.st_mode & S_IFMT == S_IFREG
-        else { throw RadrootsAppleFileError.permanentFailure }
+        guard leaf.withCString({ Darwin.fstatat(directory.descriptor, $0, &value, AT_SYMLINK_NOFOLLOW) }) == 0
+        else { throw RadrootsAppleFileError.posix(errno) }
+        guard value.st_mode & S_IFMT == S_IFREG else { throw RadrootsAppleFileError.permanentFailure }
         try directory.validate()
-        guard leaf.withCString({ Darwin.unlinkat(directory.descriptor, $0, 0) }) == 0,
-              Darwin.fsync(directory.descriptor) == 0
-        else { throw RadrootsAppleFileError.permanentFailure }
+        guard leaf.withCString({ Darwin.unlinkat(directory.descriptor, $0, 0) }) == 0
+        else { throw RadrootsAppleFileError.posix(errno) }
+        guard Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
         try directory.validate()
     }
 
@@ -144,14 +150,17 @@ enum RadrootsAtomicFile {
         let descriptor = leaf.withCString {
             Darwin.openat(directory.descriptor, $0, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         }
-        guard descriptor >= 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard descriptor >= 0 else { throw RadrootsAppleFileError.posix(errno) }
         defer { Darwin.close(descriptor) }
         var before = stat()
         var after = stat()
-        guard Darwin.fstat(descriptor, &before) == 0, before.st_mode & S_IFMT == S_IFREG,
-              Darwin.fsync(descriptor) == 0, Darwin.fsync(directory.descriptor) == 0,
-              leaf.withCString({ Darwin.fstatat(directory.descriptor, $0, &after, AT_SYMLINK_NOFOLLOW) }) == 0,
-              before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+        guard Darwin.fstat(descriptor, &before) == 0 else { throw RadrootsAppleFileError.posix(errno) }
+        guard before.st_mode & S_IFMT == S_IFREG else { throw RadrootsAppleFileError.permanentFailure }
+        guard Darwin.fsync(descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
+        guard Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
+        guard leaf.withCString({ Darwin.fstatat(directory.descriptor, $0, &after, AT_SYMLINK_NOFOLLOW) }) == 0
+        else { throw RadrootsAppleFileError.posix(errno) }
+        guard before.st_dev == after.st_dev, before.st_ino == after.st_ino,
               before.st_size == after.st_size
         else { throw RadrootsAppleFileError.permanentFailure }
         try directory.validate()
@@ -173,7 +182,7 @@ enum RadrootsAtomicFile {
         let descriptor = temporary.withCString {
             Darwin.openat(directory.descriptor, $0, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
         }
-        guard descriptor >= 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard descriptor >= 0 else { throw RadrootsAppleFileError.posix(errno) }
         defer { Darwin.close(descriptor) }
         // Keep interrupted files identifiable. Normal failure cleanup is safe;
         // abrupt process loss leaves the same reserved temporary prefix.
@@ -181,10 +190,10 @@ enum RadrootsAtomicFile {
         try writeAll(data, to: descriptor, fault: fault)
         try fault?(.afterWrite)
         if readOnly, Darwin.fchmod(descriptor, 0o400) != 0 {
-            throw RadrootsAppleFileError.permanentFailure
+            throw RadrootsAppleFileError.posix(errno)
         }
         try fault?(.beforeFileSync)
-        guard Darwin.fsync(descriptor) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard Darwin.fsync(descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
         try directory.validate()
         try fault?(.beforeInstall)
         try directory.validate()
@@ -204,9 +213,9 @@ enum RadrootsAtomicFile {
                 }
             }
         }
-        guard installed == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard installed == 0 else { throw RadrootsAppleFileError.posix(errno) }
         try fault?(.beforeDirectorySync)
-        guard Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.permanentFailure }
+        guard Darwin.fsync(directory.descriptor) == 0 else { throw RadrootsAppleFileError.posix(errno) }
         try directory.validate()
     }
 
@@ -216,8 +225,10 @@ enum RadrootsAtomicFile {
             while offset < bytes.count {
                 guard let base = bytes.baseAddress else { throw RadrootsAppleFileError.invalidRequest }
                 let count = Darwin.write(descriptor, base.advanced(by: offset), min(64 * 1024, bytes.count - offset))
-                if count < 0, errno == EINTR {
-                    continue
+                if count < 0 {
+                    let code = errno
+                    if code == EINTR { continue }
+                    throw RadrootsAppleFileError.posix(code)
                 }
                 guard count > 0 else { throw RadrootsAppleFileError.permanentFailure }
                 offset += count
@@ -232,7 +243,8 @@ enum RadrootsAtomicFile {
 
         init(_ descriptor: Int32) throws {
             var value = stat()
-            guard Darwin.fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFDIR else {
+            guard Darwin.fstat(descriptor, &value) == 0 else { throw RadrootsAppleFileError.posix(errno) }
+            guard value.st_mode & S_IFMT == S_IFDIR else {
                 throw RadrootsAppleFileError.permanentFailure
             }
             device = value.st_dev
@@ -247,21 +259,21 @@ enum RadrootsAtomicFile {
 
         static func open(_ parts: [String], create: Bool) throws -> Self {
             var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-            guard descriptor >= 0 else { throw RadrootsAppleFileError.permanentFailure }
+            guard descriptor >= 0 else { throw RadrootsAppleFileError.posix(errno) }
             do {
                 var identities = try [Identity(descriptor)]
                 for part in parts {
                     if create {
                         let result = part.withCString { Darwin.mkdirat(descriptor, $0, 0o700) }
-                        guard result == 0 || errno == EEXIST else { throw RadrootsAppleFileError.permanentFailure }
+                        guard result == 0 || errno == EEXIST else { throw RadrootsAppleFileError.posix(errno) }
                         if result == 0, Darwin.fsync(descriptor) != 0 {
-                            throw RadrootsAppleFileError.permanentFailure
+                            throw RadrootsAppleFileError.posix(errno)
                         }
                     }
                     let next = part.withCString {
                         Darwin.openat(descriptor, $0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
                     }
-                    guard next >= 0 else { throw RadrootsAppleFileError.permanentFailure }
+                    guard next >= 0 else { throw RadrootsAppleFileError.posix(errno) }
                     Darwin.close(descriptor)
                     descriptor = next
                     try identities.append(Identity(descriptor))

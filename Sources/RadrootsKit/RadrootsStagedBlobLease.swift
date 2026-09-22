@@ -28,10 +28,9 @@ extension RadrootsAppleFileAccess {
         let url = try leaseURL(identifier)
         let lease = RadrootsStagedBlobLease(identifier: identifier, blob: blob, sha256: digest, fileURL: url)
         do {
-            try RadrootsAtomicFile.install(bytes, at: url, mode: .create, readOnly: true)
+            try persistence.install(bytes, url, .create, true)
         } catch {
-            try validateLease(lease)
-            try RadrootsAtomicFile.synchronizeExisting(at: url)
+            try recoverLease(lease, originalError: error)
         }
         try validateLease(lease)
         return lease
@@ -49,25 +48,27 @@ extension RadrootsAppleFileAccess {
         guard data.count == reference.sizeBytes else { throw RadrootsAppleFileError.invalidRequest }
         let url = try roots.stagedBlobURL(for: reference)
         do {
-            try RadrootsAtomicFile.install(data, at: url, mode: .create)
+            try persistence.install(data, url, .create, false)
         } catch {
             let originalError = error
+            let existing: Data?
             do {
-                let existing = try readStagedBlob(reference)
-                if existing == data {
-                    try RadrootsAtomicFile.synchronizeExisting(at: url)
-                    return
-                }
+                existing = try readStagedBlob(reference)
             } catch RadrootsAppleFileError.notFound {
                 throw originalError
             } catch {
                 // Corrupt size/bytes may be repaired only by the exact content
                 // identity below. Symlink traversal still fails in the writer.
+                existing = nil
+            }
+            if existing == data {
+                try persistence.synchronize(url)
+                return
             }
             guard RadrootsAppleFileDigest.sha256(data) == reference.blobID else {
                 throw RadrootsAppleFileError.permanentFailure
             }
-            try RadrootsAtomicFile.install(data, at: url)
+            try persistence.install(data, url, .replace, false)
         }
     }
 
@@ -86,7 +87,7 @@ extension RadrootsAppleFileAccess {
         let lease = RadrootsStagedBlobLease(identifier: identifier, blob: blob, sha256: expectedSHA256, fileURL: url)
         do {
             try validateLease(lease)
-            try RadrootsAtomicFile.synchronizeExisting(at: url)
+            try persistence.synchronize(url)
             return lease
         } catch RadrootsAppleFileError.notFound {
             // Only definitive absence admits creation; protected/corrupt or
@@ -97,12 +98,11 @@ extension RadrootsAppleFileAccess {
             throw RadrootsAppleFileError.permanentFailure
         }
         do {
-            try RadrootsAtomicFile.install(bytes, at: url, mode: .create, readOnly: true)
+            try persistence.install(bytes, url, .create, true)
         } catch {
             // A competing identical admission or an ambiguous directory sync
             // can be recovered only by checking and flushing the exact lease.
-            try validateLease(lease)
-            try RadrootsAtomicFile.synchronizeExisting(at: url)
+            try recoverLease(lease, originalError: error)
         }
         try validateLease(lease)
         return lease
@@ -124,6 +124,17 @@ extension RadrootsAppleFileAccess {
         else { throw RadrootsAppleFileError.invalidRequest }
         return roots.dataRoot.appendingPathComponent("staged_blob_leases", isDirectory: true)
             .appendingPathComponent(identifier)
+    }
+
+    private func recoverLease(_ lease: RadrootsStagedBlobLease, originalError: any Error) throws {
+        do {
+            try validateLease(lease)
+        } catch RadrootsAppleFileError.notFound {
+            throw originalError
+        }
+        // A matching file may have been installed despite the original error.
+        // Only a successful flush establishes a reusable durable lease.
+        try persistence.synchronize(lease.fileURL)
     }
 
     private func validateLease(_ lease: RadrootsStagedBlobLease) throws {

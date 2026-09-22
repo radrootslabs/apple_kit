@@ -5,6 +5,10 @@ public enum RadrootsBackgroundTransferError: Error, Equatable, Sendable {
     case unavailable
     case transferFailure
     case persistenceFailure
+    /// Filesystem capacity is exhausted; existing effects still require reconciliation.
+    case spaceInsufficient
+    /// The bounded receipt envelope is full. This is distinct from free disk space.
+    case receiptCapacityExceeded
 }
 
 extension RadrootsBackgroundTransferError: LocalizedError {
@@ -14,7 +18,16 @@ extension RadrootsBackgroundTransferError: LocalizedError {
         case .unavailable: "Background transfer is unavailable."
         case .transferFailure: "The background transfer could not be completed."
         case .persistenceFailure: "The background transfer state could not be saved."
+        case .spaceInsufficient: "There is not enough storage space to save the transfer state."
+        case .receiptCapacityExceeded: "The transfer receipt store has reached its capacity."
         }
+    }
+}
+
+extension RadrootsBackgroundTransferError {
+    static func persistence(_ error: any Error) -> Self {
+        if let typed = error as? Self, typed == .spaceInsufficient || typed == .receiptCapacityExceeded { return typed }
+        return RadrootsAppleFileError.classified(error) == .spaceInsufficient ? .spaceInsufficient : .persistenceFailure
     }
 }
 

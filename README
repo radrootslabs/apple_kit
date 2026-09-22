@@ -17,6 +17,14 @@ extbuild-enabled checkout, first run
 `cargo extbuild doctor` and route those commands through
 `cargo extbuild run --`.
 
+## Storage capacity
+
+File, capture and transfer adapters report typed capacity failures without raw
+filesystem details. A failed write may already have installed bytes; retain the
+original identity and reconcile before retrying. The transfer receipt envelope
+has a separate bounded-capacity error. Neither error authorizes deletion of
+unresolved receipts, staged media or leases, or automatic network retry.
+
 ## Copyright
 
 Except as otherwise noted, all files in the `apple_kit` distribution are

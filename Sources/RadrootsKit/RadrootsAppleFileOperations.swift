@@ -170,7 +170,7 @@ extension RadrootsAppleFileAccess {
         } catch let error as RadrootsDocumentInterchangeError {
             throw error
         } catch {
-            throw RadrootsAppleFileError.permanentFailure
+            throw RadrootsAppleFileError.classified(error)
         }
     }
 }

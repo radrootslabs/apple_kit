@@ -59,7 +59,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -90,7 +90,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -145,6 +145,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
             guard let executionID = queued.executionID else { throw RadrootsBackgroundTransferError.invalidRequest }
             try await adapters.enqueue(request, executionID)
         } catch {
+            let persistenceFailure = RadrootsBackgroundTransferError.persistence(error)
             if stoppedAdmissions[request.identifier] != nil {
                 try? await adapters.cancel(request.identifier)
             }
@@ -154,6 +155,9 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
                 _ = try await exchange(current, current.transitioned(to: .failed, at: adapters.now(),
                                                                      failure: .enqueueFailed,
                                                                      possibleRemoteOrphan: request.isUpload))
+            }
+            if persistenceFailure == .spaceInsufficient || persistenceFailure == .receiptCapacityExceeded {
+                throw persistenceFailure
             }
             throw RadrootsBackgroundTransferError.transferFailure
         }
@@ -275,7 +279,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -287,7 +291,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -307,7 +311,7 @@ public actor RadrootsAppleBackgroundTransfer: RadrootsBackgroundTransfer {
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 }

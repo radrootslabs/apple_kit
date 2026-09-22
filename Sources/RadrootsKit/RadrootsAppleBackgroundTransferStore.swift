@@ -19,6 +19,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let protectedData: RadrootsProtectedDataProvider
+    private let persistence: RadrootsFilePersistence
     private var admissionScan: RadrootsAdmissionFileScan?
 
     private struct Admission {
@@ -35,6 +36,17 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         encoder = JSONEncoder()
         decoder = JSONDecoder()
         self.protectedData = protectedData
+        persistence = .live
+        encoder.outputFormatting = [.sortedKeys]
+    }
+
+    init(roots: RadrootsAppleFileRoots, persistence: RadrootsFilePersistence) {
+        self.roots = roots
+        fileManager = .default
+        encoder = JSONEncoder()
+        decoder = JSONDecoder()
+        protectedData = .available
+        self.persistence = persistence
         encoder.outputFormatting = [.sortedKeys]
     }
 
@@ -75,7 +87,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         } catch RadrootsAppleFileError.transientFailure {
             throw RadrootsBackgroundTransferError.unavailable
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -95,7 +107,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
                 }
             } catch RadrootsAppleFileError.transientFailure {
                 // The leaf was not created within its bounded retry budget.
-            } catch { throw RadrootsBackgroundTransferError.persistenceFailure }
+            } catch { throw RadrootsBackgroundTransferError.persistence(error) }
             await Task.yield()
         }
         throw RadrootsBackgroundTransferError.unavailable
@@ -144,7 +156,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
             return RadrootsAdmissionCleanupResult(scannedEntries: batch.scanned, removedFiles: removed, reachedEnd: batch.reachedEnd)
         } catch {
             admissionScan = nil
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -180,7 +192,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -225,7 +237,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
             }
             return snapshots
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -243,7 +255,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -260,7 +272,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -277,7 +289,7 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         } catch let error as RadrootsBackgroundTransferError {
             throw error
         } catch {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.persistence(error)
         }
     }
 
@@ -288,9 +300,9 @@ public actor RadrootsAppleBackgroundTransferStore: RadrootsBackgroundTransferSto
         )
         let data = try encoder.encode(Envelope(snapshots: snapshots))
         guard data.count <= Self.maximumPersistenceBytes else {
-            throw RadrootsBackgroundTransferError.persistenceFailure
+            throw RadrootsBackgroundTransferError.receiptCapacityExceeded
         }
-        try RadrootsAtomicFile.install(data, at: url)
+        try persistence.install(data, url, .replace, false)
         #if os(iOS)
             try fileManager.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],

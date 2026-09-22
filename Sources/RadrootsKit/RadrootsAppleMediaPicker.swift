@@ -202,6 +202,8 @@ public final class RadrootsAppleMediaPicker: RadrootsMediaPicker, @unchecked Sen
             .transientFailure
         case .permanentFailure:
             .permanentFailure
+        case .spaceInsufficient:
+            .spaceInsufficient
         }
     }
 }
