@@ -165,6 +165,7 @@ public actor RadrootsIdentityCustody {
 
     @discardableResult
     public func createIdentity(label: String? = nil) async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         _ = try recover()
         guard try loadRecord() == nil, try !secureStore.contains(secretKey(.active)) else {
             throw RadrootsIdentityCustodyError.identityAlreadyExists
@@ -189,6 +190,7 @@ public actor RadrootsIdentityCustody {
         label: String? = nil,
         replaceExisting: Bool = false
     ) async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         _ = try recover()
         _ = try cryptography.publicKeyHex(for: material.copyBytes())
         let existing = try loadRecord()
@@ -218,6 +220,7 @@ public actor RadrootsIdentityCustody {
         passphrase: RadrootsIdentityPassphrase,
         replaceExisting: Bool = false
     ) async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         let opened = try RadrootsIdentityPortabilityCodec.open(envelope, passphrase: passphrase)
         _ = try recover()
         let existing = try loadRecord()
@@ -244,6 +247,7 @@ public actor RadrootsIdentityCustody {
     public func exportPortableIdentity(
         passphrase: RadrootsIdentityPassphrase
     ) async throws -> RadrootsIdentityPortabilityEnvelope {
+        try requireUncancelledTask()
         try requireProtectedData()
         guard let session else {
             throw RadrootsIdentityCustodyError.identityLocked
@@ -273,10 +277,42 @@ public actor RadrootsIdentityCustody {
         from legacyKey: RadrootsSecureStoreKey,
         label: String? = nil
     ) async throws -> RadrootsIdentitySnapshot {
+        try await migrateLegacyIdentity(from: legacyKey, expectedIdentity: nil, label: label)
+    }
+
+    @discardableResult
+    public func migrateLegacyIdentity(
+        from legacyKey: RadrootsSecureStoreKey,
+        expectedPublicKeyHex: String,
+        label: String? = nil
+    ) async throws -> RadrootsIdentitySnapshot {
+        guard expectedPublicKeyHex.count == 64,
+              expectedPublicKeyHex.utf8.allSatisfy({ (48 ... 57).contains($0) || (97 ... 102).contains($0) })
+        else {
+            throw RadrootsIdentityCustodyError.invalidMetadata
+        }
+        return try await migrateLegacyIdentity(
+            from: legacyKey, expectedIdentity: expectedPublicKeyHex, label: label
+        )
+    }
+
+    private func migrateLegacyIdentity(
+        from legacyKey: RadrootsSecureStoreKey,
+        expectedIdentity: String?,
+        label: String?
+    ) async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         _ = try recover()
         try requireProtectedData()
         if let existing = try loadRecord(), try secureStore.contains(secretKey(.active)) {
+            if let expectedIdentity, expectedIdentity != existing.publicKeyHex {
+                throw RadrootsIdentityCustodyError.inconsistentState
+            }
             guard let legacy = try secureStore.get(legacyKey) else {
+                if expectedIdentity != nil {
+                    try validateActiveSecret(for: existing)
+                    try requireUncancelledTask()
+                }
                 return snapshot()
             }
             guard let text = String(data: legacy, encoding: .utf8),
@@ -286,6 +322,7 @@ public actor RadrootsIdentityCustody {
                 throw RadrootsIdentityCustodyError.inconsistentState
             }
             try validateActiveSecret(for: existing)
+            try requireUncancelledTask()
             try secureStore.delete(legacyKey)
             return snapshot()
         }
@@ -295,8 +332,14 @@ public actor RadrootsIdentityCustody {
             throw RadrootsIdentityCustodyError.identityNotFound
         }
         let material = try RadrootsIdentitySecretMaterial(importText: text)
+        if let expectedIdentity,
+           try cryptography.publicKeyHex(for: material.copyBytes()) != expectedIdentity
+        {
+            throw RadrootsIdentityCustodyError.inconsistentState
+        }
         let result = try await importIdentity(material, label: label)
         try validateActiveSecret(for: requiredRecord())
+        try requireUncancelledTask()
         do {
             try secureStore.delete(legacyKey)
         } catch {
@@ -315,6 +358,7 @@ public actor RadrootsIdentityCustody {
 
     @discardableResult
     public func unlockIdentity() async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         _ = try recover()
         try requireProtectedData()
         let record = try requiredRecord()
@@ -358,6 +402,7 @@ public actor RadrootsIdentityCustody {
 
     @discardableResult
     public func deleteIdentity() async throws -> RadrootsIdentitySnapshot {
+        try requireUncancelledTask()
         _ = try recover()
         try requireProtectedData()
         let record = try requiredRecord()
@@ -630,6 +675,7 @@ public actor RadrootsIdentityCustody {
     }
 
     private func requireUserPresence(reason: String) async throws {
+        try requireUncancelledTask()
         try requireProtectedData()
         let request: RadrootsUserPresenceRequest
         do {
@@ -639,6 +685,7 @@ public actor RadrootsIdentityCustody {
         }
         do {
             let result = try await userPresence.verify(request)
+            try requireUncancelledTask()
             guard result.verified else {
                 throw RadrootsIdentityCustodyError.userPresenceRequired
             }
@@ -657,6 +704,12 @@ public actor RadrootsIdentityCustody {
             throw RadrootsIdentityCustodyError.userPresenceRequired
         }
         try requireProtectedData()
+    }
+
+    private func requireUncancelledTask() throws {
+        guard !Task.isCancelled else {
+            throw RadrootsIdentityCustodyError.cancelled
+        }
     }
 
     private func requireProtectedData() throws {

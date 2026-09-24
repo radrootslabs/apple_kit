@@ -32,6 +32,10 @@ context. Cancellation before evaluation prevents its launch. Legacy identity
 migration removes the legacy secret only after reading and validating the
 retained active key against the same public identity. An unavailable or invalid
 active key preserves legacy custody for explicit recovery.
+Hosts with retained public metadata can supply its expected public key to the
+guarded migration overload; a mismatch fails before import or legacy deletion.
+Cancelled custody requests cannot use a later successful presence callback to
+authorize another effect. Cancellation does not roll back an already committed key.
 
 ## Copyright
 
