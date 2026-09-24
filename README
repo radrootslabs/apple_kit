@@ -25,6 +25,14 @@ original identity and reconcile before retrying. The transfer receipt envelope
 has a separate bounded-capacity error. Neither error authorizes deletion of
 unresolved receipts, staged media or leases, or automatic network retry.
 
+## Identity custody
+
+User-presence cancellation and timeout invalidate the active authentication
+context. Cancellation before evaluation prevents its launch. Legacy identity
+migration removes the legacy secret only after reading and validating the
+retained active key against the same public identity. An unavailable or invalid
+active key preserves legacy custody for explicit recovery.
+
 ## Copyright
 
 Except as otherwise noted, all files in the `apple_kit` distribution are

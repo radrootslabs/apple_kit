@@ -163,7 +163,8 @@ extension RadrootsAppleUserPresenceAdapters {
         ) async throws -> RadrootsUserPresenceResult {
             try await RadrootsAppleUserPresenceAsyncSupport.awaitCallback(
                 timeout: callbackTimeout,
-                timeoutMessage: "timed out while completing user presence verification"
+                timeoutMessage: "timed out while completing user presence verification",
+                invalidate: { context.invalidate() }
             ) { completion in
                 context.evaluatePolicy(
                     platformPolicy(request.policy),
@@ -186,19 +187,16 @@ enum RadrootsAppleUserPresenceAsyncSupport {
     static func awaitCallback<Value: Sendable>(
         timeout: TimeInterval,
         timeoutMessage: String,
-        _ body: (@escaping @Sendable (Result<Value, RadrootsUserPresenceError>) -> Void) -> Void
+        invalidate: @escaping @Sendable () -> Void = {},
+        _ body: @escaping @Sendable (
+            @escaping @Sendable (Result<Value, RadrootsUserPresenceError>) -> Void
+        ) -> Void
     ) async throws -> Value {
-        let state = RadrootsAppleUserPresenceAsyncCallbackState<Value>()
+        let nanoseconds = try timeoutNanoseconds(timeout)
+        let state = RadrootsAppleUserPresenceAsyncCallbackState<Value>(invalidate: invalidate)
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                state.install(continuation)
-                body { result in
-                    state.resume(result)
-                }
-                Task {
-                    try? await Task.sleep(nanoseconds: try Self.timeoutNanoseconds(timeout))
-                    state.resume(.failure(.timeout))
-                }
+                state.install(continuation, timeoutNanoseconds: nanoseconds, body: body)
             }
         } onCancel: {
             state.resume(.failure(.userCancelled))
@@ -210,47 +208,65 @@ enum RadrootsAppleUserPresenceAsyncSupport {
             throw RadrootsUserPresenceError.invalidRequest
         }
         let nanoseconds = timeout * 1_000_000_000
-        guard nanoseconds <= Double(UInt64.max) else {
+        guard nanoseconds >= 1, nanoseconds < Double(UInt64.max) else {
             throw RadrootsUserPresenceError.invalidRequest
         }
         return UInt64(nanoseconds)
     }
 }
 
-private final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>:
+final class RadrootsAppleUserPresenceAsyncCallbackState<Value: Sendable>:
     @unchecked Sendable
 {
-    private let lock = NSLock()
+    // All mutable state and context start/invalidation run on this serial queue.
+    // Cancellation queued before installation cannot launch evaluatePolicy;
+    // cancellation after evaluation starts invalidates that same context.
+    // Foreign callbacks only enqueue resolution, including synchronous callbacks.
+    private let queue = DispatchQueue(label: "org.radroots.user-presence")
+    private let invalidate: @Sendable () -> Void
     private var continuation: CheckedContinuation<Value, any Error>?
-    private var didResolve = false
+    private var result: Result<Value, RadrootsUserPresenceError>?
+    private var timer: Task<Void, Never>?
 
-    func install(_ continuation: CheckedContinuation<Value, any Error>) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !didResolve else {
-            continuation.resume(throwing: RadrootsUserPresenceError.transientFailure)
-            return
+    init(invalidate: @escaping @Sendable () -> Void) {
+        self.invalidate = invalidate
+    }
+
+    func install(
+        _ continuation: CheckedContinuation<Value, any Error>,
+        timeoutNanoseconds: UInt64,
+        body: @escaping @Sendable (
+            @escaping @Sendable (Result<Value, RadrootsUserPresenceError>) -> Void
+        ) -> Void
+    ) {
+        queue.async {
+            if let result = self.result {
+                continuation.resume(with: result.mapError { $0 as any Error })
+                return
+            }
+            self.continuation = continuation
+            self.timer = Task {
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    self.resume(.failure(.timeout))
+                } catch {
+                    // Completed evaluations cancel their timer; no second result.
+                }
+            }
+            body { [weak self] in self?.resume($0) }
         }
-        self.continuation = continuation
     }
 
     func resume(_ result: Result<Value, RadrootsUserPresenceError>) {
-        let pending: CheckedContinuation<Value, any Error>?
-        lock.lock()
-        if didResolve {
-            lock.unlock()
-            return
-        }
-        didResolve = true
-        pending = continuation
-        continuation = nil
-        lock.unlock()
-
-        switch result {
-        case .success(let value):
-            pending?.resume(returning: value)
-        case .failure(let error):
-            pending?.resume(throwing: error)
+        queue.async {
+            guard self.result == nil else { return }
+            self.result = result
+            self.timer?.cancel()
+            self.timer = nil
+            self.invalidate()
+            let pending = self.continuation
+            self.continuation = nil
+            pending?.resume(with: result.mapError { $0 as any Error })
         }
     }
 }

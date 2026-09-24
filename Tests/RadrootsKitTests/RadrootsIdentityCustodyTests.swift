@@ -314,6 +314,68 @@ private let bobSecretHex = "59392e9068f66431b12f70218fb61281cb6b433d7f27c5abee1f
     #expect(try fixture.secureStore.get(legacyKey) == nil)
 }
 
+@Test(arguments: [Data(repeating: 0, count: 32), Data([1]), Data(repeating: 1, count: 32)])
+func legacyMigrationRetainsGoodLegacyWhenActiveSecretIsInvalid(active: Data) async throws {
+    let namespace = UUID().uuidString.lowercased()
+    let fixture = try makeIdentityFixture(namespace: namespace)
+    let original = try await fixture.custody.importIdentity(
+        RadrootsIdentitySecretMaterial(importText: aliceSecretHex)
+    )
+    let legacyKey = RadrootsSecureStoreKey(namespace: "legacy", name: "selected_secret_hex")
+    let legacy = Data(aliceSecretHex.utf8)
+    try fixture.secureStore.put(legacy, for: legacyKey)
+    try fixture.secureStore.put(
+        active, for: RadrootsSecureStoreKey(namespace: namespace, name: "active_secret_v1")
+    )
+    await #expect(throws: (any Error).self) {
+        try await fixture.custody.migrateLegacyIdentity(from: legacyKey)
+    }
+    #expect(try fixture.secureStore.get(legacyKey) == legacy)
+    #expect(await fixture.custody.snapshot().identity == original.identity)
+    #expect(try fixture.secureStore.get(
+        RadrootsSecureStoreKey(namespace: namespace, name: "active_secret_v1")
+    ) == active)
+}
+
+@Test func legacyMigrationReadDenialPreservesLegacyAndInstalledIdentity() async throws {
+    let namespace = UUID().uuidString.lowercased()
+    let store = UnreadableActiveIdentityStore()
+    let custody = try RadrootsIdentityCustody(
+        configuration: RadrootsIdentityCustodyConfiguration(namespace: namespace),
+        secureStore: store, metadataStore: RadrootsInMemoryIdentityMetadataStore(),
+        userPresence: RadrootsFakeUserPresence(), now: { identityTestNow }
+    )
+    let original = try await custody.importIdentity(
+        RadrootsIdentitySecretMaterial(importText: aliceSecretHex)
+    )
+    let key = RadrootsSecureStoreKey(namespace: "legacy", name: "selected_secret_hex")
+    try store.put(Data(aliceSecretHex.utf8), for: key)
+    await #expect(throws: RadrootsIdentityCustodyError.storageUnavailable) {
+        try await custody.migrateLegacyIdentity(from: key)
+    }
+    #expect(try store.get(key) == Data(aliceSecretHex.utf8))
+    #expect(await custody.snapshot().identity == original.identity)
+}
+
+private final class UnreadableActiveIdentityStore: RadrootsSecureStore, Sendable {
+    private let backing = RadrootsInMemorySecureStore()
+
+    func put(_ value: Data, for key: RadrootsSecureStoreKey, policy: RadrootsSecretAccessPolicy) throws {
+        try backing.put(value, for: key, policy: policy)
+    }
+
+    func contains(_ key: RadrootsSecureStoreKey) throws -> Bool { try backing.contains(key) }
+    func delete(_ key: RadrootsSecureStoreKey) throws { try backing.delete(key) }
+    func deleteNamespace(_ namespace: String) throws { try backing.deleteNamespace(namespace) }
+
+    func get(_ key: RadrootsSecureStoreKey) throws -> Data? {
+        guard key.name != "active_secret_v1" else {
+            throw RadrootsAppleSecurityError.permissionDenied
+        }
+        return try backing.get(key)
+    }
+}
+
 @Test func opaqueSignerBridgeCancelsPendingWorkAndCompletesExactlyOnce() async throws {
     let secureStore = RadrootsInMemorySecureStore()
     let metadata = RadrootsInMemoryIdentityMetadataStore()

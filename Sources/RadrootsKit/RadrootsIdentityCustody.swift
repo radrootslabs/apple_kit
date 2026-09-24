@@ -273,6 +273,8 @@ public actor RadrootsIdentityCustody {
         from legacyKey: RadrootsSecureStoreKey,
         label: String? = nil
     ) async throws -> RadrootsIdentitySnapshot {
+        _ = try recover()
+        try requireProtectedData()
         if let existing = try loadRecord(), try secureStore.contains(secretKey(.active)) {
             guard let legacy = try secureStore.get(legacyKey) else {
                 return snapshot()
@@ -283,6 +285,7 @@ public actor RadrootsIdentityCustody {
             else {
                 throw RadrootsIdentityCustodyError.inconsistentState
             }
+            try validateActiveSecret(for: existing)
             try secureStore.delete(legacyKey)
             return snapshot()
         }
@@ -293,12 +296,21 @@ public actor RadrootsIdentityCustody {
         }
         let material = try RadrootsIdentitySecretMaterial(importText: text)
         let result = try await importIdentity(material, label: label)
+        try validateActiveSecret(for: requiredRecord())
         do {
             try secureStore.delete(legacyKey)
         } catch {
             throw RadrootsIdentityCustodyError.recoveryRequired
         }
         return result
+    }
+
+    private func validateActiveSecret(for record: RadrootsIdentityPublicRecord) throws {
+        var active = try readSecret(.active)
+        defer { active.resetBytes(in: active.startIndex ..< active.endIndex) }
+        guard try cryptography.publicKeyHex(for: active) == record.publicKeyHex else {
+            throw RadrootsIdentityCustodyError.inconsistentState
+        }
     }
 
     @discardableResult
